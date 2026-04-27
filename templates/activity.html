@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Canes Market | Activity{% endblock %}
+
+{% block content %}
+<section class="dashboard-header">
+    <div>
+        <p class="eyebrow">Marketplace activity</p>
+        <h1>Track the offers you send and the ones buyers send you.</h1>
+        <p class="muted">This page replaces the old static cart demo with something that fits a marketplace workflow.</p>
+    </div>
+</section>
+
+<section class="split-layout">
+    <article class="panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Buying</p>
+                <h2>Offers you made</h2>
+            </div>
+        </div>
+
+        {% if offers_made %}
+            <div class="stack-list">
+                {% for offer in offers_made %}
+                    <div class="offer-card">
+                        <div class="offer-card-header">
+                            <div>
+                                <h3><a href="{{ url_for('views.listing_detail', listing_id=offer.listing.id) }}">{{ offer.listing.title }}</a></h3>
+                                <p>Seller: {{ offer.seller.display_name }}</p>
+                            </div>
+                            <span class="status-pill status-{{ offer.status }}">{{ offer.status }}</span>
+                        </div>
+                        <p class="offer-note">Your offer: {{ offer.amount_cents | money }}</p>
+                        {% if offer.counter_amount_cents %}
+                            <p class="offer-note">Counter offer: {{ offer.counter_amount_cents | money }}</p>
+                        {% endif %}
+                        {% if offer.seller_response %}
+                            <p class="offer-note"><strong>Seller response:</strong> {{ offer.seller_response }}</p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="muted">You have not sent any offers yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Selling</p>
+                <h2>Offers you received</h2>
+            </div>
+        </div>
+
+        {% if offers_received %}
+            <div class="stack-list">
+                {% for offer in offers_received %}
+                    <div class="offer-card">
+                        <div class="offer-card-header">
+                            <div>
+                                <h3><a href="{{ url_for('views.listing_detail', listing_id=offer.listing.id) }}">{{ offer.listing.title }}</a></h3>
+                                <p>Buyer: {{ offer.buyer.display_name }}</p>
+                            </div>
+                            <span class="status-pill status-{{ offer.status }}">{{ offer.status }}</span>
+                        </div>
+                        <p class="offer-note">Offer amount: {{ offer.amount_cents | money }}</p>
+                        {% if offer.seller_response %}
+                            <p class="offer-note"><strong>Latest response:</strong> {{ offer.seller_response }}</p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="muted">No buyers have made an offer on your listings yet.</p>
+        {% endif %}
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Inventory snapshot</p>
+            <h2>Your latest listings</h2>
+        </div>
+    </div>
+
+    {% if listings %}
+        <div class="card-grid">
+            {% for listing in listings %}
+                <article class="market-card">
+                    <img src="{{ listing.image_url }}" alt="{{ listing.title }}" class="market-card-image">
+                    <div class="market-card-body">
+                        <div class="tag-row">
+                            <span class="pill">{{ listing.category }}</span>
+                            <span class="status-pill status-{{ listing.status }}">{{ listing.status }}</span>
+                        </div>
+                        <h3>{{ listing.title }}</h3>
+                        <p>{{ listing.location }}</p>
+                    </div>
+                    <div class="market-card-footer">
+                        <strong>{{ listing.price_cents | money }}</strong>
+                        <a class="button button-small button-secondary" href="{{ url_for('views.listing_detail', listing_id=listing.id) }}">Open</a>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="muted">You do not have any listings yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

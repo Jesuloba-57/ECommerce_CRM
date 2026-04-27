@@ -1,14 +1,66 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body style="background-color: #fdaea4;">
-    <h1>The E-Commerce website is used to solve the problem of people not being able to find items in stores available. It provides an easy way to sell products to a large customer base.
-        Most online market platforms have a “fixed price” policy, which takes away one of the most important features of commerce - the ability to negotiate prices. With the element of bargaining, a product can be bought for less than its initial listed price. Adding a negotiation feature would innovate online marketplaces, be seen as a major benefit to many consumers, and undoubtedly increase e-commerce use.
-        </h1>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Canes Market | About{% endblock %}
+
+{% block content %}
+<section class="panel prose-panel">
+    <p class="eyebrow">Project direction</p>
+    <h1>From static storefront to negotiation-first marketplace</h1>
+    <p>
+        The original concept described a Facebook Marketplace-style experience where buyers and sellers
+        interact directly, sellers can react quickly to demand, and every product keeps a visible history of price changes.
+        This refresh turns that idea into a working app structure instead of a brochure site.
+    </p>
+</section>
+
+<section class="split-layout">
+    <article class="panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">What matters most</p>
+                <h2>Marketplace behaviors</h2>
+            </div>
+        </div>
+        <div class="feature-grid single-column">
+            <article class="feature-card">
+                <h3>Direct buyer-seller interaction</h3>
+                <p>Offers are now part of the product flow, so buyers can negotiate instead of only accepting a fixed price.</p>
+            </article>
+            <article class="feature-card">
+                <h3>Fast price updates for sellers</h3>
+                <p>Sellers can adjust listing prices from a dashboard and keep a reason attached to each change.</p>
+            </article>
+            <article class="feature-card">
+                <h3>Transparent price history</h3>
+                <p>Each listing records its pricing timeline to build buyer trust and show how demand changes over time.</p>
+            </article>
+        </div>
+    </article>
+
+    <article class="panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Current snapshot</p>
+                <h2>Live marketplace stats</h2>
+            </div>
+        </div>
+        <div class="stat-grid">
+            <article class="stat-card">
+                <span class="stat-label">Listings</span>
+                <strong>{{ stats.listings }}</strong>
+            </article>
+            <article class="stat-card">
+                <span class="stat-label">Offers</span>
+                <strong>{{ stats.offers }}</strong>
+            </article>
+            <article class="stat-card">
+                <span class="stat-label">Price updates</span>
+                <strong>{{ stats.price_updates }}</strong>
+            </article>
+        </div>
+        <p class="muted">
+            This lays the groundwork for future additions like messaging, saved listings, seller ratings, moderation, and payments.
+        </p>
+    </article>
+</section>
+{% endblock %}

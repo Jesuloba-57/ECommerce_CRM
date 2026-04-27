@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Canes Market | {{ listing.title }}{% endblock %}
+
+{% block content %}
+<section class="detail-hero">
+    <article class="panel detail-main">
+        <img src="{{ listing.image_url }}" alt="{{ listing.title }}" class="detail-image">
+        <div class="detail-copy">
+            <div class="tag-row">
+                <span class="pill">{{ listing.category }}</span>
+                <span class="pill pill-muted">{{ listing.condition }}</span>
+                <span class="status-pill status-{{ listing.status }}">{{ listing.status }}</span>
+            </div>
+            <h1>{{ listing.title }}</h1>
+            <p class="detail-price">{{ listing.price_cents | money }}</p>
+            <p>{{ listing.description }}</p>
+            <div class="market-meta">
+                <span>{{ listing.location }}</span>
+                <span>Seller: {{ listing.seller.display_name }}</span>
+                <span>Updated {{ listing.updated_at | datetime }}</span>
+            </div>
+        </div>
+    </article>
+
+    <aside class="panel detail-sidebar">
+        <p class="eyebrow">Negotiation panel</p>
+        {% if current_user.is_authenticated and current_user.id == listing.seller_id %}
+            <h2>You own this listing</h2>
+            <p class="muted">Use the seller dashboard to update pricing, respond to offers, or change status.</p>
+            <a class="button" href="{{ url_for('views.seller_dashboard') }}">Open seller dashboard</a>
+        {% elif listing.status != "active" %}
+            <h2>Listing unavailable</h2>
+            <p class="muted">This item is no longer accepting new offers.</p>
+        {% elif current_user.is_authenticated %}
+            <h2>Make an offer</h2>
+            <form method="POST" action="{{ url_for('views.submit_offer', listing_id=listing.id) }}" class="form-card compact-form">
+                <label>
+                    <span>Your offer</span>
+                    <input type="text" name="amount" placeholder="Example: 240.00" required>
+                </label>
+                <label>
+                    <span>Message</span>
+                    <textarea name="message" rows="3" placeholder="Mention pickup timing, condition questions, or a reason for your offer"></textarea>
+                </label>
+                <button class="button" type="submit">Send offer</button>
+            </form>
+        {% else %}
+            <h2>Ready to negotiate?</h2>
+            <p class="muted">Log in to make offers, track seller responses, and manage your own listings.</p>
+            <a class="button" href="{{ url_for('auth.login') }}">Login to continue</a>
+        {% endif %}
+    </aside>
+</section>
+
+<section class="split-layout">
+    <article class="panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Transparency</p>
+                <h2>Price history</h2>
+            </div>
+        </div>
+
+        {% if listing.price_history %}
+            <ul class="timeline">
+                {% for change in listing.price_history %}
+                    <li>
+                        <strong>{{ change.new_price_cents | money }}</strong>
+                        {% if change.old_price_cents %}
+                            <span>from {{ change.old_price_cents | money }}</span>
+                        {% else %}
+                            <span>first listed</span>
+                        {% endif %}
+                        <small>{{ change.note or "Price updated" }} • {{ change.changed_at | datetime }}</small>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="muted">Price history will appear here as the listing changes.</p>
+        {% endif %}
+    </article>
+
+    <article class="panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Offer activity</p>
+                <h2>
+                    {% if current_user.is_authenticated and current_user.id == listing.seller_id %}
+                        Incoming offers
+                    {% else %}
+                        Your offer history
+                    {% endif %}
+                </h2>
+            </div>
+        </div>
+
+        {% if current_user.is_authenticated and current_user.id == listing.seller_id %}
+            {% if listing.offers %}
+                <div class="stack-list">
+                    {% for offer in listing.offers %}
+                        <div class="offer-card">
+                            <div class="offer-card-header">
+                                <div>
+                                    <h3>{{ offer.buyer.display_name }}</h3>
+                                    <p>Offered {{ offer.amount_cents | money }} on {{ offer.created_at | datetime }}</p>
+                                </div>
+                                <span class="status-pill status-{{ offer.status }}">{{ offer.status }}</span>
+                            </div>
+                            {% if offer.message %}
+                                <p class="offer-note">{{ offer.message }}</p>
+                            {% endif %}
+                            {% if offer.seller_response %}
+                                <p class="offer-note"><strong>Response:</strong> {{ offer.seller_response }}</p>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="muted">No offers yet.</p>
+            {% endif %}
+        {% else %}
+            {% if viewer_offers %}
+                <div class="stack-list">
+                    {% for offer in viewer_offers %}
+                        <div class="offer-card">
+                            <div class="offer-card-header">
+                                <div>
+                                    <h3>Offer of {{ offer.amount_cents | money }}</h3>
+                                    <p>Submitted {{ offer.created_at | datetime }}</p>
+                                </div>
+                                <span class="status-pill status-{{ offer.status }}">{{ offer.status }}</span>
+                            </div>
+                            {% if offer.message %}
+                                <p class="offer-note">{{ offer.message }}</p>
+                            {% endif %}
+                            {% if offer.counter_amount_cents %}
+                                <p class="offer-note"><strong>Counter:</strong> {{ offer.counter_amount_cents | money }}</p>
+                            {% endif %}
+                            {% if offer.seller_response %}
+                                <p class="offer-note"><strong>Seller says:</strong> {{ offer.seller_response }}</p>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="muted">Your offers on this listing will appear here after you submit one.</p>
+            {% endif %}
+        {% endif %}
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">You might also like</p>
+            <h2>Related listings</h2>
+        </div>
+    </div>
+
+    {% if related_listings %}
+        <div class="card-grid">
+            {% for related in related_listings %}
+                <article class="market-card">
+                    <img src="{{ related.image_url }}" alt="{{ related.title }}" class="market-card-image">
+                    <div class="market-card-body">
+                        <div class="tag-row">
+                            <span class="pill">{{ related.category }}</span>
+                            <span class="pill pill-muted">{{ related.condition }}</span>
+                        </div>
+                        <h3>{{ related.title }}</h3>
+                        <p>{{ related.location }} • {{ related.seller.display_name }}</p>
+                    </div>
+                    <div class="market-card-footer">
+                        <strong>{{ related.price_cents | money }}</strong>
+                        <a class="button button-small button-secondary" href="{{ url_for('views.listing_detail', listing_id=related.id) }}">View</a>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="muted">No related listings yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,30 +1,29 @@
-<!DOCTYPE html>
-<html>
-<head>
-	<title>Slide Navbar</title>
-    <link rel="stylesheet" href="/static/css/login.css">
-	<link rel="stylesheet" type="text/css" href="slide navbar style.css">
-<link href="https://fonts.googleapis.com/css2?family=Jost:wght@500&display=swap" rel="stylesheet">
+{% extends "base.html" %}
 
-</head>
-<h2 class="fmessage">
-	{% for message in get_flashed_messages() %}
-		{{ message }}
-	{% endfor %}
-</h2>
-<body>
-	
-	<div class="main">  	
-		<input type="checkbox" id="chk" aria-hidden="true">
-			<div class="login">
-				<form method="POST" action="">
-					<label for="chk" aria-hidden="true">Login</label>
-                    <input type="email" name="email" placeholder="Email" required="">
-                    <input type="password" name="password1" placeholder="Password" required="">
-                    <button>Login</button>
-				</form>
-				<p class="sublink">Don't have an Account yet? <a href="/signup">Here</a><p>
-			</div>
-	</div>
-</body>
-</html>
+{% block title %}Canes Market | Login{% endblock %}
+
+{% block content %}
+<section class="auth-shell">
+    <article class="auth-panel">
+        <div>
+            <p class="eyebrow">Welcome back</p>
+            <h1>Sign in to manage offers and listings.</h1>
+            <p class="muted">Buyers can track offers. Sellers can update inventory, adjust prices, and respond to negotiations.</p>
+        </div>
+
+        <form method="POST" class="form-card auth-form">
+            <label>
+                <span>Email</span>
+                <input type="email" name="email" placeholder="you@example.com" required>
+            </label>
+            <label>
+                <span>Password</span>
+                <input type="password" name="password" placeholder="Enter your password" required>
+            </label>
+            <button class="button" type="submit">Login</button>
+        </form>
+
+        <p class="auth-switch">Need an account? <a href="{{ url_for('auth.sign_up') }}">Create one here</a>.</p>
+    </article>
+</section>
+{% endblock %}

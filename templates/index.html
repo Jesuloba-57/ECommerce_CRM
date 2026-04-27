@@ -1,375 +1,173 @@
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>Canes Store | E-commerce Website Design</title>
-        <link rel="stylesheet" href="/static/css/style.css">
-        <link href="https://fonts.googleapis.com/css2?
-        family=Open+Sans:ital,weight@1,300;1,400;1,500;1,600;
-        1,700&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/
-        @fontawesome/fontawesome-free@6.2.0/css/fontawesome.min.css">
-        <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto">
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Montserrat">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    </head>
-    <h3>
-        {% for m in message %}
-            {{ message }}
-        {% endfor %}
-    </h3>
-    <body>
-        <div class="header">
-            <div class="container"> 
-                <div class="navbar">
-                    <div class="logo">
-                        <img src="/static/images/canesImage.png" width="100px">
-                    </div>
-                    <nav>
-                        <input class="search" type="text" placeholder="Search...">
-                        <ul id="MenuItems">
-                            <li><a href="">HOME</a></li>
-                            <li><a href="/login">LOGIN</a></li>
-                            <li><a href="/about">ABOUT</a></li>
-                            {% if current_user.is_authenticated %}
-                                <li><a href="/cart">CART</a></li>
-                            {% endif %}
-                            <li><a href="/seller">SELLERS</a></li>
-                        </ul>
-                    </nav>
-                    <!--<<img src="" width="30px" height="30px">
-                    <img src="" class="menu-icon" onclick="menutoggle()">-->
-                </div>
-                <div class="row">
-                    <div class="col-2">
-                        <h1>Give your Choice <br>an efficient Product!</h1>
-                        <p>Canes Store offer every product you desire for your maximum satisfaction</p>
-                        <!-- <a href="products.html" class="btn">Explore Now &#8594;</a> -->
-                    </div>
-                    <div class="col-2">
-                        <img src="/static/images/webImage.jpeg">
-                    </div>
-                </div>
-            </div>
-        </div>
+{% extends "base.html" %}
 
-        <!----- featured categories ------>
-        <div class="categories">
-            <div class="small-container">
-                <div class="row">
-                    <div class="col-3">
-                        <img src="/static/images/shoe1.jpg">
-                    </div>
-                    <div class="col-3">
-                        <img src="/static/images/jean7.jpg">
-                    </div>
-                    <div class="col-3">
-                        <img src="/static/images/laptop1.webp">
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!----- featured products ------>
-         <div class="small-container">
-            <h2 class="title">Featured Products</h2>
-            <div class="row">
-                <div class="col-4">
-                    <img src="/static/images/red1.jpg" alt="">
-                    <h4>Red Printed T-Shirt</h4>
-                    <div class="rating">
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star-o"></i>
-                    </div>
-                    <p>$50.00</p>
-                </div>
-                <div class="col-4">
-                    <img src="/static/images/red2.jpg" alt="">
-                    <h4>Red long-sleeve Shirt</h4>
-                    <div class="rating">
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star-o"></i>
-                    </div>
-                    <p>$50.00</p>
-                </div>
-                <div class="col-4">
-                    <img src="/static/images/WHITE TSHIRTS 140622 default-land-GettyImages-1398817154.jpg.webp" alt="">
-                    <h4>White T-Shirt</h4>
-                    <div class="rating">
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star-half-o"></i>
-                    </div>
-                    <p>$50.00</p>
-                </div>
-                <div class="col-4">
-                    <img src="/static/images/images.jpeg" alt="" width="50%">
-                    <h4>White T-Shirt</h4>
-                    <div class="rating">
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star-half-o"></i>
-                    </div>
-                    <p>$25.00</p>
-                </div>
-            </div>
-            <h2 class="title">Latest Products Review</h2>
-            <div class="row">
-                <div class="col-4">
-                    <img src="/static/images/images-1.jpeg" alt="">
-                    <h4>White Printed T-Shirt</h4>
-                    <div class="rating">
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star-o"></i>
-                    </div>
-                    <p>$25.00</p>
-                </div>
-                <div class="col-4">
-                    <img src="/static/images/shoe7.jpg" alt="">
-                    <h4>Boy's shoe (light blue)</h4>
-                    <div class="rating">
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star-o"></i>
-                    </div>
-                    <p>$50.00</p>
-                </div>
-                <div class="col-4">
-                    <img src="/static/images/shoe1.jpg" alt="">
-                    <h4>men's shoe (brown)</h4>
-                    <div class="rating">
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star-half-o"></i>
-                    </div>
-                    <p>$50.00</p>
-                </div>
-                <div class="col-4">
-                    <img src="/static/images/shoe6.jpg" alt="">
-                    <h4>Yellow high heels</h4>
-                    <div class="rating">
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star"></i>
-                        <i class="fa fa-star-half-o"></i>
-                    </div>
-                    <p>$50.00</p>
-                </div>
-            </div>
-         </div>
-         <!-------- offer ------->
-         <div class="offer">
-            <div class="small-container">
-                <div class="row">
-                    <div class="col-2">
-                        <img src="/static/images/smartband.png" class="offer-img">
-                    </div>
-                    <div class="col-2">
-                        <p>Exclusively available on Canes Store</p>
-                        <h1>Smart Band 4</h1>
-                        <small> the Mi Smart band features a 39.9% larger 
-                            (than Mi Band 3) AMOLED color full-touch display with 
-                            adjustable brightness, so everything is clear as it can 
-                            be.</small>
-                            <a href="/cart" class="btn">Buy Now &#8594;</a>
-                    </div>
-                </div>
-            </div>
-         </div>
-         <!------- testimonial ----->
-         <div class="testimonial">
-            <div class="small-container">
-                <div class="row">
-                    <div class="col-3">
-                        <i class="fa fa-quote-left"></i>
-                        <p>This website is the best when it comes to absolute
-                            good customer care.
-                        </p>
-                        <div class="rating">
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star-o"></i>
-                        </div>
-                        <img src="/static/images/guy2.avif">
-                        <h3>Sean Parker</h3> 
-                    </div>
+{% block title %}Canes Market | Browse Listings{% endblock %}
 
-                    <div class="col-3">
-                        <i class="fa fa-quote-left"></i>
-                        <p>Canes Store is a really nice store which is
-                            fast and reliable when it comes to delivery of products.
-                        </p>
-                        <div class="rating">
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star-o"></i>
-                        </div>
-                        <img src="/static/images/lady1.avif">
-                        <h3>Mabel Ann</h3> 
-                    </div>
-
-                    <div class="col-3">
-                        <i class="fa fa-quote-left"></i>
-                        <p>This store is such an amazing store in terms of having adequate products
-                            and readily available to purchase.
-                        </p>
-                        <div class="rating">
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star"></i>
-                            <i class="fa fa-star-o"></i>
-                        </div>
-                        <img src="/static/images/guy1.avif">
-                        <h3>Joe Rez</h3> 
-                    </div>
-                </div>
-            </div>
-         </div>
-
-    <!----------------- brands --------------->
-    <div class="brands">
-        <div class="small-container">
-            <div class="row">
-                <div class="col-5">
-                    <img src="/static/images/nike.webp">
-                </div>
-                <div class="col-5">
-                    <img src="/static/images/adidas.png">
-                </div>
-                <div class="col-5">
-                    <img src="/static/images/puma.jpg">
-                </div>
-                <div class="col-5">
-                    <img src="/static/images/apple.png">
-                </div>
-                <div class="col-5">
-                    <img src="/static/images/hp.png">
-                </div>
-            </div>
+{% block content %}
+<section class="hero">
+    <div class="hero-copy">
+        <p class="eyebrow">Negotiation-first marketplace</p>
+        <h1>Buy, sell, counter, and track price changes in one place.</h1>
+        <p class="hero-text">
+            This version of the project now behaves like a real marketplace: sellers can publish listings,
+            update prices with history, and respond to buyer offers instead of relying on fixed demo pages.
+        </p>
+        <div class="hero-actions">
+            <a class="button" href="{{ url_for('views.seller_dashboard') if current_user.is_authenticated else url_for('auth.sign_up') }}">
+                {{ "Open seller dashboard" if current_user.is_authenticated else "Start selling" }}
+            </a>
+            <a class="button button-secondary" href="#market-listings">Explore listings</a>
         </div>
     </div>
 
-    <!-- Subscribe section -->
-  <div class="w3-container w3-black w3-padding-32">
-    <h1>Subscribe</h1>
-    <p>To get special offers and VIP treatment:</p>
-    <p><input class="w3-input w3-border" type="text" placeholder="Enter e-mail" style="width:100%"></p>
-    <button type="button" class="w3-button w3-red w3-margin-bottom">Subscribe</button>
-  </div>
-  
-  <!-- Footer -->
-  <footer class="w3-padding-64 w3-light-grey w3-small w3-center" id="footer">
-    <div class="w3-row-padding">
-      <div class="w3-col s4">
-        <h4>Contact</h4>
-        <p>Questions? Go ahead.</p>
-        <form action="/action_page.php" target="_blank">
-          <p><input class="w3-input w3-border" type="text" placeholder="Name" name="Name" required></p>
-          <p><input class="w3-input w3-border" type="text" placeholder="Email" name="Email" required></p>
-          <p><input class="w3-input w3-border" type="text" placeholder="Subject" name="Subject" required></p>
-          <p><input class="w3-input w3-border" type="text" placeholder="Message" name="Message" required></p>
-          <button type="submit" class="w3-button w3-block w3-black">Send</button>
+    <div class="hero-panel">
+        <div class="stat-grid">
+            <article class="stat-card">
+                <span class="stat-label">Active listings</span>
+                <strong>{{ stats.active_listings }}</strong>
+            </article>
+            <article class="stat-card">
+                <span class="stat-label">Sellers</span>
+                <strong>{{ stats.sellers }}</strong>
+            </article>
+            <article class="stat-card">
+                <span class="stat-label">Offers sent</span>
+                <strong>{{ stats.offers }}</strong>
+            </article>
+        </div>
+        <div class="hero-note">
+            <p>Built for the bargaining workflow described in your project vision.</p>
+            <small>Every price update is stored in product history, so buyers can see how a listing has changed over time.</small>
+        </div>
+    </div>
+</section>
+
+<section class="panel search-panel" id="market-listings">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Marketplace feed</p>
+            <h2>Browse live inventory</h2>
+        </div>
+        <form class="search-form" method="GET" action="{{ url_for('views.home') }}">
+            <input type="search" name="q" value="{{ search }}" placeholder="Search by title, description, location, or seller">
+            <select name="category">
+                <option value="">All categories</option>
+                {% for category in categories %}
+                    <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+                {% endfor %}
+            </select>
+            <button class="button button-small" type="submit">Filter</button>
         </form>
-      </div>
-
-      <div class="w3-col s4">
-        <h4>About</h4>
-        <p><a href="#">About us</a></p>
-        <p><a href="#">We're hiring</a></p>
-        <p><a href="#">Support</a></p>
-        <p><a href="#">Find store</a></p>
-        <p><a href="#">Shipment</a></p>
-        <p><a href="#">Payment</a></p>
-        <p><a href="#">Gift card</a></p>
-        <p><a href="#">Return</a></p>
-        <p><a href="#">Help</a></p>
-      </div>
-
-      <div class="w3-col s4 w3-justify">
-        <h4>Store</h4>
-        <p><i class="fa fa-fw fa-map-marker"></i> Canes Store</p>
-        <p><i class="fa fa-fw fa-phone"></i> 0044123123</p>
-        <p><i class="fa fa-fw fa-envelope"></i> ex@mail.com</p>
-        <h4>We accept</h4>
-        <p><i class="fa fa-fw fa-cc-amex"></i> Amex</p>
-        <p><i class="fa fa-fw fa-credit-card"></i> Credit Card</p>
-        <br>
-        <i class="fa fa-facebook-official w3-hover-opacity w3-large"></i>
-        <i class="fa fa-instagram w3-hover-opacity w3-large"></i>
-        <i class="fa fa-snapchat w3-hover-opacity w3-large"></i>
-        <i class="fa fa-pinterest-p w3-hover-opacity w3-large"></i>
-        <i class="fa fa-twitter w3-hover-opacity w3-large"></i>
-        <i class="fa fa-linkedin w3-hover-opacity w3-large"></i>
-      </div>
     </div>
-  </footer>
 
-  <div class="w3-black w3-center w3-padding-24">Powered by <a href="https://www.w3schools.com/w3css/default.asp" title="W3.CSS" target="_blank" class="w3-hover-opacity">w3.css</a></div>
+    {% if listings %}
+        <div class="card-grid">
+            {% for listing in listings %}
+                <article class="market-card">
+                    <img src="{{ listing.image_url }}" alt="{{ listing.title }}" class="market-card-image">
+                    <div class="market-card-body">
+                        <div class="tag-row">
+                            <span class="pill">{{ listing.category }}</span>
+                            <span class="pill pill-muted">{{ listing.condition }}</span>
+                        </div>
+                        <h3>{{ listing.title }}</h3>
+                        <p>{{ listing.description[:120] }}{% if listing.description|length > 120 %}...{% endif %}</p>
+                        <div class="market-meta">
+                            <span>{{ listing.location }}</span>
+                            <span>{{ listing.seller.display_name }}</span>
+                        </div>
+                    </div>
+                    <div class="market-card-footer">
+                        <strong>{{ listing.price_cents | money }}</strong>
+                        <a class="button button-small button-secondary" href="{{ url_for('views.listing_detail', listing_id=listing.id) }}">View details</a>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h3>No listings matched that search.</h3>
+            <p>Try a different keyword, clear the category filter, or create the first listing in a new category.</p>
+        </div>
+    {% endif %}
+</section>
 
-  <!-- End page content -->
-</div>
+<section class="split-layout">
+    <article class="panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Price intelligence</p>
+                <h2>Recent price drops</h2>
+            </div>
+        </div>
 
-<!-- Newsletter Modal -->
-<div id="newsletter" class="w3-modal">
-  <div class="w3-modal-content w3-animate-zoom" style="padding:32px">
-    <div class="w3-container w3-white w3-center">
-      <i onclick="document.getElementById('newsletter').style.display='none'" class="fa fa-remove w3-right w3-button w3-transparent w3-xxlarge"></i>
-      <h2 class="w3-wide">NEWSLETTER</h2>
-      <p>Join our mailing list to receive updates on new arrivals and special offers.</p>
-      <p><input class="w3-input w3-border" type="text" placeholder="Enter e-mail"></p>
-      <button type="button" class="w3-button w3-padding-large w3-red w3-margin-bottom" onclick="document.getElementById('newsletter').style.display='none'">Subscribe</button>
+        {% if recent_price_drops %}
+            <div class="stack-list">
+                {% for change in recent_price_drops %}
+                    <div class="stack-card">
+                        <div>
+                            <h3><a href="{{ url_for('views.listing_detail', listing_id=change.listing.id) }}">{{ change.listing.title }}</a></h3>
+                            <p>{{ change.note or "Seller updated the price." }}</p>
+                        </div>
+                        <div class="price-shift">
+                            <span>{{ change.old_price_cents | money }}</span>
+                            <strong>{{ change.new_price_cents | money }}</strong>
+                            <small>Drop of {{ (change.old_price_cents - change.new_price_cents) | money }}</small>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="muted">Price updates will appear here as sellers revise listings.</p>
+        {% endif %}
+    </article>
+
+    <article class="panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Seller momentum</p>
+                <h2>Featured sellers</h2>
+            </div>
+        </div>
+
+        {% if featured_sellers %}
+            <div class="stack-list">
+                {% for seller, listing_count in featured_sellers %}
+                    <div class="stack-card seller-card">
+                        <div>
+                            <h3>{{ seller.display_name }}</h3>
+                            <p>{{ seller.email }}</p>
+                        </div>
+                        <strong>{{ listing_count }} live listing{{ "" if listing_count == 1 else "s" }}</strong>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="muted">Sellers will show up here once listings are published.</p>
+        {% endif %}
+    </article>
+</section>
+
+<section class="panel feature-strip">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">How this version works</p>
+            <h2>Core marketplace features now implemented</h2>
+        </div>
     </div>
-  </div>
-</div>
 
-<script>
-// Accordion 
-function myAccFunc() {
-  var x = document.getElementById("demoAcc");
-  if (x.className.indexOf("w3-show") == -1) {
-    x.className += " w3-show";
-  } else {
-    x.className = x.className.replace(" w3-show", "");
-  }
-}
-
-// Click on the "Jeans" link on page load to open the accordion for demo purposes
-document.getElementById("myBtn").click();
-
-
-// Open and close sidebar
-function w3_open() {
-  document.getElementById("mySidebar").style.display = "block";
-  document.getElementById("myOverlay").style.display = "block";
-}
- 
-function w3_close() {
-  document.getElementById("mySidebar").style.display = "none";
-  document.getElementById("myOverlay").style.display = "none";
-}
-</script>
-    </body>
-</html>
+    <div class="feature-grid">
+        <article class="feature-card">
+            <h3>Seller dashboard</h3>
+            <p>Create listings, pause or mark them sold, and adjust prices without editing HTML by hand.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Offer workflow</h3>
+            <p>Buyers can submit offers and sellers can accept, decline, or counter from the app.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Price history</h3>
+            <p>Each listing records its price changes so buyers can judge timing and sellers can explain changes.</p>
+        </article>
+    </div>
+</section>
+{% endblock %}

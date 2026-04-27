@@ -1,38 +1,41 @@
-<!DOCTYPE html>
-<html>
-<head>
-	<title>Slide Navbar</title>
-    <link rel="stylesheet" href="/static/css/login.css">
-	<link rel="stylesheet" type="text/css" href="slide navbar style.css">
-<link href="https://fonts.googleapis.com/css2?family=Jost:wght@500&display=swap" rel="stylesheet">
+{% extends "base.html" %}
 
-</head>
-<h2 class="fmessage">
-	{% for message in get_flashed_messages() %}
-	{{ message }}
-	{% endfor %}
-</h2>
-<body>
-	<div class="main">  	
-		<input type="checkbox" id="chk" aria-hidden="true">
+{% block title %}Canes Market | Create Account{% endblock %}
 
-			<div class="signup">
-				<form method="POST" action="">
-					<label for="chk" aria-hidden="true">Sign up</label>
-                    <input type="text" name="fname" placeholder="First Name" required="">
-                    <input type="text" name="lname" placeholder="Last Name" required="">
-                    <input type="email" name="email" placeholder="Email" required="">
-                    <!-- <label for="password1">Password</label> -->
-					<input type="password" id="password1" name="password1" placeholder="Password" required="">
-                    <!-- <label for="password2">Password (confirm)</label> -->
-                    <input type="password" id="password2" name="password2" placeholder="Confirm Password" required="">
-					
-					<button>Sign up</button>
-					<p class="sublink">Already have an Account? Click <a href="/login">Here</a><p>
-				</form>
-			</div>
-            
-            
-	</div>
-</body>
-</html>
+{% block content %}
+<section class="auth-shell">
+    <article class="auth-panel">
+        <div>
+            <p class="eyebrow">Get started</p>
+            <h1>Create your buyer-seller account.</h1>
+            <p class="muted">One account lets you browse listings, submit offers, publish products, and keep price history updated.</p>
+        </div>
+
+        <form method="POST" class="form-card auth-form two-column-form">
+            <label>
+                <span>First name</span>
+                <input type="text" name="first_name" placeholder="Jordan" required>
+            </label>
+            <label>
+                <span>Last name</span>
+                <input type="text" name="last_name" placeholder="Smith">
+            </label>
+            <label class="full-width">
+                <span>Email</span>
+                <input type="email" name="email" placeholder="you@example.com" required>
+            </label>
+            <label>
+                <span>Password</span>
+                <input type="password" name="password1" placeholder="At least 8 characters" required>
+            </label>
+            <label>
+                <span>Confirm password</span>
+                <input type="password" name="password2" placeholder="Repeat your password" required>
+            </label>
+            <button class="button full-width" type="submit">Create account</button>
+        </form>
+
+        <p class="auth-switch">Already registered? <a href="{{ url_for('auth.login') }}">Sign in</a>.</p>
+    </article>
+</section>
+{% endblock %}
