@@ -1,8 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask_login import UserMixin
 
 from __init__ import db
+
+
+def utc_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class User(db.Model, UserMixin):
@@ -12,7 +16,7 @@ class User(db.Model, UserMixin):
     status = db.Column(db.Boolean, default=True)
     first_name = db.Column(db.String(100))
     last_name = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
     listings = db.relationship(
         "Listing",
@@ -53,11 +57,11 @@ class Listing(db.Model):
     image_url = db.Column(db.String(255), nullable=False, default="/static/images/webImage.jpeg")
     price_cents = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), nullable=False, default="active", index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
     updated_at = db.Column(
         db.DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now,
+        onupdate=utc_now,
         nullable=False,
     )
 
@@ -85,7 +89,7 @@ class PriceHistory(db.Model):
     old_price_cents = db.Column(db.Integer)
     new_price_cents = db.Column(db.Integer, nullable=False)
     note = db.Column(db.String(255))
-    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    changed_at = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     listing = db.relationship("Listing", back_populates="price_history")
     changed_by = db.relationship("User")
@@ -105,7 +109,7 @@ class Offer(db.Model):
     status = db.Column(db.String(20), nullable=False, default="pending", index=True)
     counter_amount_cents = db.Column(db.Integer)
     seller_response = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
     responded_at = db.Column(db.DateTime)
 
     listing = db.relationship("Listing", back_populates="offers")

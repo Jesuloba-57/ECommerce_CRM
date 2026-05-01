@@ -35,6 +35,7 @@
         {% elif current_user.is_authenticated %}
             <h2>Make an offer</h2>
             <form method="POST" action="{{ url_for('views.submit_offer', listing_id=listing.id) }}" class="form-card compact-form">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <label>
                     <span>Your offer</span>
                     <input type="text" name="amount" placeholder="Example: 240.00" required>

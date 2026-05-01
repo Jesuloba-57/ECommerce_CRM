@@ -35,6 +35,7 @@
         </div>
 
         <form method="POST" action="{{ url_for('views.create_listing') }}" class="form-card create-form">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <label>
                 <span>Title</span>
                 <input type="text" name="title" placeholder="Example: iPad Air 64GB" required>
@@ -109,6 +110,7 @@
 
                         {% if offer.status in ["pending", "countered"] %}
                             <form method="POST" action="{{ url_for('views.respond_to_offer', offer_id=offer.id) }}" class="form-card compact-form">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                 <label>
                                     <span>Response note</span>
                                     <textarea name="seller_response" rows="2" placeholder="Optional reply for the buyer"></textarea>
@@ -165,6 +167,7 @@
 
                         <div class="dashboard-forms">
                             <form method="POST" action="{{ url_for('views.update_listing_price', listing_id=listing.id) }}" class="form-card compact-form">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                 <h4>Update price</h4>
                                 <label>
                                     <span>New price</span>
@@ -178,6 +181,7 @@
                             </form>
 
                             <form method="POST" action="{{ url_for('views.update_listing_status', listing_id=listing.id) }}" class="form-card compact-form">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                 <h4>Listing status</h4>
                                 <label>
                                     <span>Status</span>

@@ -3,6 +3,3 @@ Flask
 Flask-SQLAlchemy
 Flask-Login
 shortuuid
-
-# Optional: only needed if you plan to use connectDB.py / MySQL
-# mysql-connector-python

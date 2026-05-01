@@ -1,8 +1,9 @@
+import hmac
 import os
-from datetime import datetime
+from secrets import token_urlsafe
 
 import shortuuid
-from flask import Flask
+from flask import Flask, abort, request, session
 from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect, text
@@ -10,6 +11,7 @@ from werkzeug.security import generate_password_hash
 
 db = SQLAlchemy()
 DB_NAME = "database.db"
+CSRF_SESSION_KEY = "_csrf_token"
 
 
 def create_app():
@@ -40,6 +42,8 @@ def create_app():
 
     app.jinja_env.filters["money"] = format_money
     app.jinja_env.filters["datetime"] = format_datetime
+    app.jinja_env.globals["csrf_token"] = generate_csrf_token
+    app.before_request(validate_csrf_token)
 
     with app.app_context():
         create_database()
@@ -77,7 +81,7 @@ def ensure_user_columns():
 
 
 def seed_marketplace_data():
-    from db_model import Listing, PriceHistory, User
+    from db_model import Listing, PriceHistory, User, utc_now
 
     if Listing.query.count() > 0:
         return
@@ -91,7 +95,7 @@ def seed_marketplace_data():
             status=True,
             first_name="Campus",
             last_name="Seller",
-            created_at=datetime.utcnow(),
+            created_at=utc_now(),
         )
         db.session.add(seller)
         db.session.commit()
@@ -101,7 +105,7 @@ def seed_marketplace_data():
     if not seller.last_name:
         seller.last_name = "Seller"
     if seller.created_at is None:
-        seller.created_at = datetime.utcnow()
+        seller.created_at = utc_now()
 
     sample_listings = [
         {
@@ -169,3 +173,30 @@ def format_datetime(value):
     if value is None:
         return "Not yet"
     return value.strftime("%b %d, %Y %I:%M %p")
+
+
+def generate_csrf_token():
+    token = session.get(CSRF_SESSION_KEY)
+    if token is None:
+        token = token_urlsafe(32)
+        session[CSRF_SESSION_KEY] = token
+    return token
+
+
+def validate_csrf_token():
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return
+
+    expected_token = session.get(CSRF_SESSION_KEY)
+    submitted_token = (
+        request.form.get("_csrf_token")
+        or request.headers.get("X-CSRFToken")
+        or request.headers.get("X-CSRF-Token")
+    )
+
+    if (
+        not expected_token
+        or not submitted_token
+        or not hmac.compare_digest(expected_token, submitted_token)
+    ):
+        abort(400, description="Invalid or missing CSRF token.")

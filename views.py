@@ -1,4 +1,3 @@
-from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
@@ -7,7 +6,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 
 from __init__ import db
-from db_model import Listing, Offer, PriceHistory, User
+from db_model import Listing, Offer, PriceHistory, User, utc_now
 
 views = Blueprint("views", __name__)
 
@@ -41,7 +40,7 @@ def parse_price_to_cents(raw_price):
 
 
 def get_owned_listing(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     if listing.seller_id != current_user.id:
         abort(403)
     return listing
@@ -236,7 +235,7 @@ def update_listing_price(listing_id):
     previous_price = listing.price_cents
 
     listing.price_cents = new_price_cents
-    listing.updated_at = datetime.utcnow()
+    listing.updated_at = utc_now()
     db.session.add(
         PriceHistory(
             listing_id=listing.id,
@@ -263,7 +262,7 @@ def update_listing_status(listing_id):
         return redirect(url_for("views.seller_dashboard"))
 
     listing.status = new_status
-    listing.updated_at = datetime.utcnow()
+    listing.updated_at = utc_now()
 
     if new_status == "sold":
         open_offers = Offer.query.filter(
@@ -273,7 +272,7 @@ def update_listing_status(listing_id):
         for offer in open_offers:
             offer.status = "declined"
             offer.seller_response = "This listing is no longer available."
-            offer.responded_at = datetime.utcnow()
+            offer.responded_at = utc_now()
 
     db.session.commit()
     flash(f"Listing marked as {new_status}.", "success")
@@ -282,11 +281,15 @@ def update_listing_status(listing_id):
 
 @views.route("/listings/<int:listing_id>")
 def listing_detail(listing_id):
-    listing = Listing.query.options(
-        joinedload(Listing.seller),
-        joinedload(Listing.price_history).joinedload(PriceHistory.changed_by),
-        joinedload(Listing.offers).joinedload(Offer.buyer),
-    ).get_or_404(listing_id)
+    listing = db.get_or_404(
+        Listing,
+        listing_id,
+        options=[
+            joinedload(Listing.seller),
+            joinedload(Listing.price_history).joinedload(PriceHistory.changed_by),
+            joinedload(Listing.offers).joinedload(Offer.buyer),
+        ],
+    )
 
     related_listings = (
         Listing.query.options(joinedload(Listing.seller))
@@ -315,7 +318,7 @@ def listing_detail(listing_id):
 @views.route("/listings/<int:listing_id>/offers", methods=["POST"])
 @login_required
 def submit_offer(listing_id):
-    listing = Listing.query.options(joinedload(Listing.seller)).get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id, options=[joinedload(Listing.seller)])
 
     if listing.seller_id == current_user.id:
         flash("You cannot submit an offer on your own listing.", "error")
@@ -350,7 +353,7 @@ def submit_offer(listing_id):
 @views.route("/offers/<int:offer_id>/respond", methods=["POST"])
 @login_required
 def respond_to_offer(offer_id):
-    offer = Offer.query.options(joinedload(Offer.listing)).get_or_404(offer_id)
+    offer = db.get_or_404(Offer, offer_id, options=[joinedload(Offer.listing)])
     if offer.seller_id != current_user.id:
         abort(403)
 
@@ -360,7 +363,7 @@ def respond_to_offer(offer_id):
 
     action = request.form.get("action", "").strip().lower()
     response_text = request.form.get("seller_response", "").strip()
-    now = datetime.utcnow()
+    now = utc_now()
 
     if action == "accept":
         offer.status = "accepted"
