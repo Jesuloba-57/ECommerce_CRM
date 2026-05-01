@@ -20,6 +20,7 @@ Canes Market is a Flask marketplace app for browsing campus-friendly listings, c
 |-- views.py             # Marketplace routes
 |-- authorization.py     # Login, signup, logout routes
 |-- requirements.txt     # Python dependencies
+|-- tests/               # Smoke tests for core workflows
 |-- templates/           # Jinja templates
 |-- static/              # CSS and images
 `-- instance/            # Local SQLite database location
@@ -99,15 +100,7 @@ python main.py
 
 The database tables and demo listings will be recreated automatically.
 
-## Optional MySQL Helper
-
-`connectDB.py` contains an older MySQL helper and is not required for the normal Flask app startup. The default local workflow uses SQLite.
-
-If you plan to work on `connectDB.py`, install the optional MySQL package first:
-
-```bash
-python -m pip install mysql-connector-python
-```
+Local databases, virtual environments, Python cache files, and macOS `.DS_Store` files are ignored by Git.
 
 ## Troubleshooting
 
@@ -123,9 +116,7 @@ If database state looks stale, reset `instance/database.db` and restart the app.
 
 ## Tests
 
-<<<<<<< Updated upstream
 There is not an automated test suite in this repository yet. For now, verify changes by running the app locally and walking through signup, login, listing creation, price updates, offer submission, and seller responses.
-=======
 Run the smoke test suite with:
 
 ```bash
@@ -133,4 +124,3 @@ python -m unittest discover
 ```
 
 The tests use a temporary SQLite database and cover the main marketplace paths: browsing seeded listings, CSRF protection, signup, listing creation, price history, offer submission, seller acceptance, conversation creation, message sending, read receipts, and chat access control.
->>>>>>> Stashed changes

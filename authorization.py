@@ -23,7 +23,7 @@ def login():
             flash("Incorrect email or password.", "error")
             return render_template("login.html")
 
-        login_user(user, remember=True)
+        login_user(user)
         flash(f"Welcome back, {user.display_name}.", "success")
         return redirect(request.args.get("next") or url_for("views.home"))
 
@@ -63,7 +63,7 @@ def sign_up():
             )
             db.session.add(new_user)
             db.session.commit()
-            login_user(new_user, remember=True)
+            login_user(new_user)
             flash("Account created. You can start selling right away.", "success")
             return redirect(url_for("views.seller_dashboard"))
 

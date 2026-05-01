@@ -12,6 +12,7 @@
         </div>
 
         <form method="POST" class="form-card auth-form">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <label>
                 <span>Email</span>
                 <input type="email" name="email" placeholder="you@example.com" required>

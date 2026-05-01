@@ -12,6 +12,7 @@
         </div>
 
         <form method="POST" class="form-card auth-form two-column-form">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <label>
                 <span>First name</span>
                 <input type="text" name="first_name" placeholder="Jordan" required>
