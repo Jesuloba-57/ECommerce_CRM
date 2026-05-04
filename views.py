@@ -1,12 +1,12 @@
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import func, or_
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from __init__ import db
-from db_model import Listing, Offer, PriceHistory, User, utc_now
+from db_model import Conversation, Listing, Message, Offer, PriceHistory, User, utc_now
 
 views = Blueprint("views", __name__)
 
@@ -21,6 +21,7 @@ LISTING_CATEGORIES = [
 LISTING_CONDITIONS = ["New", "Like new", "Good", "Fair", "For parts"]
 LISTING_STATUSES = ["active", "paused", "sold", "archived"]
 DEFAULT_IMAGE_URL = "/static/images/webImage.jpeg"
+MAX_MESSAGE_LENGTH = 2000
 
 
 def parse_price_to_cents(raw_price):
@@ -44,6 +45,249 @@ def get_owned_listing(listing_id):
     if listing.seller_id != current_user.id:
         abort(403)
     return listing
+
+
+def money_label(value):
+    return f"${value / 100:,.2f}"
+
+
+def datetime_payload(value):
+    if value is None:
+        return None
+    return value.isoformat()
+
+
+def current_user_can_access_conversation(conversation):
+    return current_user.id in {conversation.buyer_id, conversation.seller_id}
+
+
+def get_accessible_conversation(conversation_id):
+    conversation = db.get_or_404(
+        Conversation,
+        conversation_id,
+        options=[
+            joinedload(Conversation.listing),
+            joinedload(Conversation.buyer),
+            joinedload(Conversation.seller),
+            selectinload(Conversation.messages).joinedload(Message.sender),
+            selectinload(Conversation.messages).joinedload(Message.offer),
+        ],
+    )
+    if not current_user_can_access_conversation(conversation):
+        abort(403)
+    return conversation
+
+
+def find_or_create_conversation(listing, buyer_id, seller_id):
+    conversation = Conversation.query.filter_by(
+        listing_id=listing.id,
+        buyer_id=buyer_id,
+        seller_id=seller_id,
+    ).first()
+
+    if conversation is None:
+        conversation = Conversation(
+            listing_id=listing.id,
+            buyer_id=buyer_id,
+            seller_id=seller_id,
+            status="active",
+            deal_status="negotiating",
+        )
+        db.session.add(conversation)
+        db.session.flush()
+    elif conversation.status != "active":
+        conversation.status = "active"
+        conversation.deal_status = "negotiating"
+
+    return conversation
+
+
+def add_conversation_message(conversation, sender_id, body, message_type="text", offer_id=None):
+    now = utc_now()
+    message = Message(
+        conversation=conversation,
+        sender_id=sender_id,
+        offer_id=offer_id,
+        body=body.strip(),
+        message_type=message_type,
+        created_at=now,
+    )
+    conversation.last_message_at = now
+    conversation.updated_at = now
+    db.session.add(message)
+    return message
+
+
+def message_payload(message):
+    payload = {
+        "id": message.id,
+        "conversation_id": message.conversation_id,
+        "sender_id": message.sender_id,
+        "sender": {
+            "id": message.sender.id,
+            "display_name": message.sender.display_name,
+        }
+        if message.sender
+        else None,
+        "offer_id": message.offer_id,
+        "body": message.body,
+        "message_type": message.message_type,
+        "created_at": datetime_payload(message.created_at),
+        "read_at": datetime_payload(message.read_at),
+    }
+
+    if message.offer:
+        payload["offer"] = {
+            "id": message.offer.id,
+            "amount_cents": message.offer.amount_cents,
+            "amount": money_label(message.offer.amount_cents),
+            "status": message.offer.status,
+            "counter_amount_cents": message.offer.counter_amount_cents,
+            "counter_amount": money_label(message.offer.counter_amount_cents)
+            if message.offer.counter_amount_cents
+            else None,
+        }
+
+    return payload
+
+
+def conversation_payload(conversation, include_messages=False):
+    latest_message = conversation.messages[-1] if conversation.messages else None
+    payload = {
+        "id": conversation.id,
+        "status": conversation.status,
+        "deal_status": conversation.deal_status,
+        "listing": {
+            "id": conversation.listing.id,
+            "title": conversation.listing.title,
+            "status": conversation.listing.status,
+            "price_cents": conversation.listing.price_cents,
+            "price": money_label(conversation.listing.price_cents),
+            "image_url": conversation.listing.image_url,
+        },
+        "buyer": {
+            "id": conversation.buyer.id,
+            "display_name": conversation.buyer.display_name,
+            "email": conversation.buyer.email,
+        },
+        "seller": {
+            "id": conversation.seller.id,
+            "display_name": conversation.seller.display_name,
+            "email": conversation.seller.email,
+        },
+        "unread_count": sum(
+            1
+            for message in conversation.messages
+            if message.sender_id != current_user.id and message.read_at is None
+        ),
+        "latest_message": message_payload(latest_message) if latest_message else None,
+        "created_at": datetime_payload(conversation.created_at),
+        "updated_at": datetime_payload(conversation.updated_at),
+        "last_message_at": datetime_payload(conversation.last_message_at),
+    }
+
+    if include_messages:
+        payload["messages"] = [message_payload(message) for message in conversation.messages]
+
+    return payload
+
+
+def request_message_body():
+    payload = request.get_json(silent=True) if request.is_json else None
+    body = (payload or {}).get("body") if payload is not None else request.form.get("body")
+    body = (body or "").strip()
+
+    if not body:
+        abort(400, description="Message body is required.")
+    if len(body) > MAX_MESSAGE_LENGTH:
+        abort(400, description=f"Message body must be {MAX_MESSAGE_LENGTH} characters or fewer.")
+
+    return body
+
+
+@views.route("/conversations")
+@login_required
+def conversations():
+    user_conversations = (
+        Conversation.query.options(
+            joinedload(Conversation.listing),
+            joinedload(Conversation.buyer),
+            joinedload(Conversation.seller),
+            selectinload(Conversation.messages).joinedload(Message.sender),
+            selectinload(Conversation.messages).joinedload(Message.offer),
+        )
+        .filter(
+            or_(
+                Conversation.buyer_id == current_user.id,
+                Conversation.seller_id == current_user.id,
+            )
+        )
+        .order_by(Conversation.last_message_at.desc(), Conversation.updated_at.desc())
+        .all()
+    )
+
+    return jsonify(
+        {
+            "conversations": [
+                conversation_payload(conversation) for conversation in user_conversations
+            ]
+        }
+    )
+
+
+@views.route("/conversations/<int:conversation_id>")
+@login_required
+def conversation_detail(conversation_id):
+    conversation = get_accessible_conversation(conversation_id)
+    return jsonify({"conversation": conversation_payload(conversation, include_messages=True)})
+
+
+@views.route("/conversations/<int:conversation_id>/messages", methods=["POST"])
+@login_required
+def send_conversation_message(conversation_id):
+    conversation = get_accessible_conversation(conversation_id)
+    if conversation.status != "active":
+        abort(409, description="This conversation is closed.")
+
+    message = add_conversation_message(
+        conversation=conversation,
+        sender_id=current_user.id,
+        body=request_message_body(),
+        message_type="text",
+    )
+    db.session.commit()
+
+    return (
+        jsonify(
+            {
+                "message": message_payload(message),
+                "conversation": conversation_payload(conversation),
+            }
+        ),
+        201,
+    )
+
+
+@views.route("/conversations/<int:conversation_id>/read", methods=["POST"])
+@login_required
+def mark_conversation_read(conversation_id):
+    conversation = get_accessible_conversation(conversation_id)
+    now = utc_now()
+    marked_read = 0
+
+    for message in conversation.messages:
+        if message.sender_id != current_user.id and message.read_at is None:
+            message.read_at = now
+            marked_read += 1
+
+    db.session.commit()
+
+    return jsonify(
+        {
+            "marked_read": marked_read,
+            "conversation": conversation_payload(conversation, include_messages=True),
+        }
+    )
 
 
 @views.route("/")
@@ -265,6 +509,7 @@ def update_listing_status(listing_id):
     listing.updated_at = utc_now()
 
     if new_status == "sold":
+        now = utc_now()
         open_offers = Offer.query.filter(
             Offer.listing_id == listing.id,
             Offer.status.in_(("pending", "countered")),
@@ -272,7 +517,22 @@ def update_listing_status(listing_id):
         for offer in open_offers:
             offer.status = "declined"
             offer.seller_response = "This listing is no longer available."
-            offer.responded_at = utc_now()
+            offer.responded_at = now
+
+            conversation = find_or_create_conversation(
+                listing=listing,
+                buyer_id=offer.buyer_id,
+                seller_id=offer.seller_id,
+            )
+            conversation.status = "closed"
+            conversation.deal_status = "declined"
+            add_conversation_message(
+                conversation=conversation,
+                sender_id=current_user.id,
+                offer_id=offer.id,
+                body="This listing is no longer available.",
+                message_type="declined",
+            )
 
     db.session.commit()
     flash(f"Listing marked as {new_status}.", "success")
@@ -344,9 +604,28 @@ def submit_offer(listing_id):
         message=message,
     )
     db.session.add(offer)
+    db.session.flush()
+
+    conversation = find_or_create_conversation(
+        listing=listing,
+        buyer_id=current_user.id,
+        seller_id=listing.seller_id,
+    )
+    conversation.deal_status = "negotiating"
+    offer_message = f"Offer sent: {money_label(amount_cents)}"
+    if message:
+        offer_message = f"{offer_message}\n{message}"
+
+    add_conversation_message(
+        conversation=conversation,
+        sender_id=current_user.id,
+        offer_id=offer.id,
+        body=offer_message,
+        message_type="offer",
+    )
     db.session.commit()
 
-    flash("Offer sent to the seller.", "success")
+    flash("Offer sent and chat started with the seller.", "success")
     return redirect(url_for("views.listing_detail", listing_id=listing.id))
 
 
@@ -364,6 +643,11 @@ def respond_to_offer(offer_id):
     action = request.form.get("action", "").strip().lower()
     response_text = request.form.get("seller_response", "").strip()
     now = utc_now()
+    conversation = find_or_create_conversation(
+        listing=offer.listing,
+        buyer_id=offer.buyer_id,
+        seller_id=offer.seller_id,
+    )
 
     if action == "accept":
         offer.status = "accepted"
@@ -371,6 +655,14 @@ def respond_to_offer(offer_id):
         offer.responded_at = now
         offer.listing.status = "sold"
         offer.listing.updated_at = now
+        conversation.deal_status = "accepted"
+        add_conversation_message(
+            conversation=conversation,
+            sender_id=current_user.id,
+            offer_id=offer.id,
+            body=response_text or f"Offer accepted at {money_label(offer.amount_cents)}.",
+            message_type="accepted",
+        )
 
         competing_offers = Offer.query.filter(
             Offer.listing_id == offer.listing_id,
@@ -381,6 +673,20 @@ def respond_to_offer(offer_id):
             competing_offer.status = "declined"
             competing_offer.seller_response = "Another offer was accepted for this listing."
             competing_offer.responded_at = now
+            competing_conversation = find_or_create_conversation(
+                listing=offer.listing,
+                buyer_id=competing_offer.buyer_id,
+                seller_id=competing_offer.seller_id,
+            )
+            competing_conversation.status = "closed"
+            competing_conversation.deal_status = "declined"
+            add_conversation_message(
+                conversation=competing_conversation,
+                sender_id=current_user.id,
+                offer_id=competing_offer.id,
+                body="Another offer was accepted for this listing.",
+                message_type="declined",
+            )
 
         flash("Offer accepted and listing marked as sold.", "success")
 
@@ -388,6 +694,14 @@ def respond_to_offer(offer_id):
         offer.status = "declined"
         offer.seller_response = response_text or "Offer declined."
         offer.responded_at = now
+        conversation.deal_status = "declined"
+        add_conversation_message(
+            conversation=conversation,
+            sender_id=current_user.id,
+            offer_id=offer.id,
+            body=response_text or "Offer declined.",
+            message_type="declined",
+        )
         flash("Offer declined.", "info")
 
     elif action == "counter":
@@ -401,6 +715,17 @@ def respond_to_offer(offer_id):
         offer.counter_amount_cents = counter_amount_cents
         offer.seller_response = response_text or "Seller sent a counter offer."
         offer.responded_at = now
+        conversation.deal_status = "negotiating"
+        counter_message = f"Counter offer: {money_label(counter_amount_cents)}"
+        if response_text:
+            counter_message = f"{counter_message}\n{response_text}"
+        add_conversation_message(
+            conversation=conversation,
+            sender_id=current_user.id,
+            offer_id=offer.id,
+            body=counter_message,
+            message_type="counter",
+        )
         flash("Counter offer sent.", "success")
 
     else:

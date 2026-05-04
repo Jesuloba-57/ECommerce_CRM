@@ -79,6 +79,10 @@ If `DATABASE_URL` is not set, the app defaults to a local SQLite database named 
 - `/seller` - Seller dashboard for creating listings, updating prices, and responding to offers
 - `/activity` - Buyer and seller offer activity
 - `/cart` - Alias for the activity page
+- `/conversations` - JSON list of the signed-in user's buyer/seller chats
+- `/conversations/<id>` - JSON detail for one chat, including messages
+- `/conversations/<id>/messages` - POST a new chat message
+- `/conversations/<id>/read` - POST to mark received messages as read
 
 ## Reset Local Data
 
@@ -112,10 +116,11 @@ If database state looks stale, reset `instance/database.db` and restart the app.
 
 ## Tests
 
+There is not an automated test suite in this repository yet. For now, verify changes by running the app locally and walking through signup, login, listing creation, price updates, offer submission, and seller responses.
 Run the smoke test suite with:
 
 ```bash
 python -m unittest discover
 ```
 
-The tests use a temporary SQLite database and cover the main marketplace paths: browsing seeded listings, CSRF protection, signup, listing creation, price history, offer submission, and seller acceptance.
+The tests use a temporary SQLite database and cover the main marketplace paths: browsing seeded listings, CSRF protection, signup, listing creation, price history, offer submission, seller acceptance, conversation creation, message sending, read receipts, and chat access control.

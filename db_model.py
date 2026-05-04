@@ -36,6 +36,24 @@ class User(db.Model, UserMixin):
         foreign_keys="Offer.seller_id",
         lazy=True,
     )
+    conversations_as_buyer = db.relationship(
+        "Conversation",
+        back_populates="buyer",
+        foreign_keys="Conversation.buyer_id",
+        lazy=True,
+    )
+    conversations_as_seller = db.relationship(
+        "Conversation",
+        back_populates="seller",
+        foreign_keys="Conversation.seller_id",
+        lazy=True,
+    )
+    messages_sent = db.relationship(
+        "Message",
+        back_populates="sender",
+        foreign_keys="Message.sender_id",
+        lazy=True,
+    )
 
     @property
     def display_name(self):
@@ -80,6 +98,12 @@ class Listing(db.Model):
         cascade="all, delete-orphan",
         lazy=True,
     )
+    conversations = db.relationship(
+        "Conversation",
+        back_populates="listing",
+        cascade="all, delete-orphan",
+        lazy=True,
+    )
 
 
 class PriceHistory(db.Model):
@@ -115,3 +139,73 @@ class Offer(db.Model):
     listing = db.relationship("Listing", back_populates="offers")
     buyer = db.relationship("User", back_populates="offers_made", foreign_keys=[buyer_id])
     seller = db.relationship("User", back_populates="offers_received", foreign_keys=[seller_id])
+    messages = db.relationship("Message", back_populates="offer", lazy=True)
+
+
+class Conversation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False, index=True)
+    buyer_id = db.Column(db.String(15), db.ForeignKey("user.id"), nullable=False, index=True)
+    seller_id = db.Column(db.String(15), db.ForeignKey("user.id"), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="active", index=True)
+    deal_status = db.Column(db.String(20), nullable=False, default="negotiating", index=True)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+    last_message_at = db.Column(db.DateTime, default=utc_now, nullable=False, index=True)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "listing_id",
+            "buyer_id",
+            "seller_id",
+            name="uq_conversation_listing_buyer_seller",
+        ),
+    )
+
+    listing = db.relationship("Listing", back_populates="conversations")
+    buyer = db.relationship(
+        "User",
+        back_populates="conversations_as_buyer",
+        foreign_keys=[buyer_id],
+    )
+    seller = db.relationship(
+        "User",
+        back_populates="conversations_as_seller",
+        foreign_keys=[seller_id],
+    )
+    messages = db.relationship(
+        "Message",
+        back_populates="conversation",
+        order_by=lambda: Message.created_at.asc(),
+        cascade="all, delete-orphan",
+        lazy=True,
+    )
+
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("conversation.id"),
+        nullable=False,
+        index=True,
+    )
+    sender_id = db.Column(db.String(15), db.ForeignKey("user.id"), nullable=False, index=True)
+    offer_id = db.Column(db.Integer, db.ForeignKey("offer.id"), index=True)
+    body = db.Column(db.Text, nullable=False)
+    message_type = db.Column(db.String(30), nullable=False, default="text", index=True)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
+    read_at = db.Column(db.DateTime)
+
+    conversation = db.relationship("Conversation", back_populates="messages")
+    sender = db.relationship(
+        "User",
+        back_populates="messages_sent",
+        foreign_keys=[sender_id],
+    )
+    offer = db.relationship("Offer", back_populates="messages")

@@ -6,10 +6,12 @@ import unittest
 from werkzeug.security import generate_password_hash
 
 from __init__ import create_app, db
-from db_model import Listing, Offer, PriceHistory, User
+from db_model import Conversation, Listing, Message, Offer, PriceHistory, User
 
 
-CSRF_RE = re.compile(r'name="_csrf_token" value="([^"]+)"')
+CSRF_RE = re.compile(
+    r'(?:name="_csrf_token" value="([^"]+)"|name="csrf-token" content="([^"]+)")'
+)
 
 
 class MarketplaceSmokeTests(unittest.TestCase):
@@ -46,7 +48,7 @@ class MarketplaceSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         match = CSRF_RE.search(response.get_data(as_text=True))
         self.assertIsNotNone(match, f"No CSRF token found on {path}")
-        return match.group(1)
+        return match.group(1) or match.group(2)
 
     def _login(self, email, password):
         token = self._csrf_token("/login")
@@ -59,6 +61,20 @@ class MarketplaceSmokeTests(unittest.TestCase):
             },
             follow_redirects=True,
         )
+
+    def _create_buyer(self, email="buyer@example.com"):
+        with self.app.app_context():
+            buyer = User(
+                id=email.split("@")[0].replace(".", "-")[:15],
+                email=email,
+                password=generate_password_hash("password123"),
+                status=True,
+                first_name="Test",
+                last_name="Buyer",
+            )
+            db.session.add(buyer)
+            db.session.commit()
+            return buyer.id
 
     def test_home_and_listing_detail_render_seeded_marketplace(self):
         response = self.client.get("/")
@@ -145,17 +161,7 @@ class MarketplaceSmokeTests(unittest.TestCase):
             self.assertEqual(price_change.note, "Spring semester discount")
 
     def test_buyer_offer_can_be_accepted_by_seller(self):
-        with self.app.app_context():
-            buyer = User(
-                id="buyer-user-1",
-                email="buyer@example.com",
-                password=generate_password_hash("password123"),
-                status=True,
-                first_name="Test",
-                last_name="Buyer",
-            )
-            db.session.add(buyer)
-            db.session.commit()
+        self._create_buyer()
 
         response = self._login("buyer@example.com", "password123")
         self.assertEqual(response.status_code, 200)
@@ -194,9 +200,121 @@ class MarketplaceSmokeTests(unittest.TestCase):
         with self.app.app_context():
             offer = db.session.get(Offer, offer_id)
             listing = db.session.get(Listing, 1)
+            conversation = Conversation.query.one()
+            message_types = [message.message_type for message in conversation.messages]
             self.assertEqual(offer.status, "accepted")
             self.assertEqual(offer.seller_response, "Deal.")
             self.assertEqual(listing.status, "sold")
+            self.assertEqual(conversation.deal_status, "accepted")
+            self.assertIn("offer", message_types)
+            self.assertIn("accepted", message_types)
+
+    def test_offer_starts_conversation_and_participants_can_chat(self):
+        buyer_id = self._create_buyer("chat-buyer@example.com")
+
+        response = self._login("chat-buyer@example.com", "password123")
+        self.assertEqual(response.status_code, 200)
+
+        token = self._csrf_token("/listings/1")
+        response = self.client.post(
+            "/listings/1/offers",
+            data={
+                "_csrf_token": token,
+                "amount": "640.00",
+                "message": "Could you meet near the library?",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with self.app.app_context():
+            conversation = Conversation.query.one()
+            conversation_id = conversation.id
+            self.assertEqual(conversation.buyer_id, buyer_id)
+            self.assertEqual(conversation.deal_status, "negotiating")
+            self.assertEqual(len(conversation.messages), 1)
+            self.assertEqual(conversation.messages[0].message_type, "offer")
+
+        response = self.client.get("/conversations")
+        self.assertEqual(response.status_code, 200)
+        conversations = response.get_json()["conversations"]
+        self.assertEqual(len(conversations), 1)
+        self.assertEqual(conversations[0]["id"], conversation_id)
+
+        response = self.client.post(
+            f"/conversations/{conversation_id}/messages",
+            headers={"X-CSRFToken": token},
+            json={"body": "I can pick it up this afternoon."},
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.get_json()["message"]["message_type"], "text")
+
+        self.client.get("/logout", follow_redirects=True)
+        response = self._login("demo-seller@canesmarket.local", "marketplace123")
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(f"/conversations/{conversation_id}")
+        self.assertEqual(response.status_code, 200)
+        conversation_payload = response.get_json()["conversation"]
+        self.assertEqual(conversation_payload["unread_count"], 2)
+        self.assertEqual(len(conversation_payload["messages"]), 2)
+
+        token = self._csrf_token("/seller")
+        response = self.client.post(
+            f"/conversations/{conversation_id}/read",
+            headers={"X-CSRFToken": token},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["marked_read"], 2)
+
+        response = self.client.post(
+            f"/conversations/{conversation_id}/messages",
+            headers={"X-CSRFToken": token},
+            json={"body": "That works. I will bring the charger too."},
+        )
+        self.assertEqual(response.status_code, 201)
+
+        with self.app.app_context():
+            conversation = db.session.get(Conversation, conversation_id)
+            self.assertEqual(len(conversation.messages), 3)
+            self.assertEqual(Message.query.filter_by(message_type="text").count(), 2)
+
+    def test_conversations_are_private_to_the_buyer_and_seller(self):
+        self._create_buyer("private-buyer@example.com")
+        self._create_buyer("outsider@example.com")
+
+        response = self._login("private-buyer@example.com", "password123")
+        self.assertEqual(response.status_code, 200)
+
+        token = self._csrf_token("/listings/1")
+        response = self.client.post(
+            "/listings/1/offers",
+            data={
+                "_csrf_token": token,
+                "amount": "600.00",
+                "message": "Starting the private chat.",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with self.app.app_context():
+            conversation_id = Conversation.query.one().id
+
+        self.client.get("/logout", follow_redirects=True)
+        response = self._login("outsider@example.com", "password123")
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(f"/conversations/{conversation_id}")
+        self.assertEqual(response.status_code, 403)
+
+        token = self._csrf_token("/")
+        response = self.client.post(
+            f"/conversations/{conversation_id}/messages",
+            headers={"X-CSRFToken": token},
+            json={"body": "I should not be able to join this."},
+        )
+        self.assertEqual(response.status_code, 403)
 
 
 if __name__ == "__main__":
