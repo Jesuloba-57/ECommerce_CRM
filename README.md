@@ -15,6 +15,7 @@ Canes Market is a Flask marketplace app for browsing campus-friendly listings, c
 ```text
 .
 |-- main.py              # Local app entry point
+|-- app.py               # WSGI entry point for Render/Gunicorn
 |-- __init__.py          # Flask app factory, database setup, seed data
 |-- db_model.py          # SQLAlchemy models
 |-- views.py             # Marketplace routes
@@ -71,6 +72,19 @@ export DATABASE_URL="sqlite:///database.db"
 ```
 
 If `DATABASE_URL` is not set, the app defaults to a local SQLite database named `database.db`. With Flask-SQLAlchemy, the active local database is stored under the app instance folder, usually `instance/database.db`.
+
+## Render Deployment
+
+The project includes `.python-version` to pin Render to Python 3.13.
+
+Use these Render settings:
+
+```text
+Build Command: pip install -r requirements.txt
+Start Command: gunicorn main:app
+```
+
+`gunicorn app:app` also works because `app.py` exposes the same Flask app for Render's default Flask quickstart command.
 
 ## Useful Routes
 
