@@ -106,10 +106,21 @@ Free-tier note: Render web services may sleep after inactivity, so open the site
 The project uses GitHub Actions for CI and Render for deployment:
 
 ```text
-feature/* branch -> PR into develop -> CI test job -> review approval -> auto-merge -> Render deploy
+feature/* branch -> PR into develop -> CI test job -> review approval -> auto-merge -> Render deploy hook
 ```
 
-The `CI` workflow runs on pushes and pull requests to `develop` and `main`.
+The `CI` workflow runs on pushes and pull requests to `develop` and `main`. On pushes to `develop`, the workflow triggers the Render deploy hook after tests pass.
+
+Render deploy hook setup:
+
+```text
+Render service > Settings > Deploy Hook > copy hook URL
+GitHub repo > Settings > Secrets and variables > Actions > New repository secret
+Name: RENDER_DEPLOY_HOOK_URL
+Value: <Render deploy hook URL>
+```
+
+To avoid duplicate deploys, set Render's native Auto-Deploy setting to `Off` when using the GitHub Actions deploy hook. If you prefer Render's native auto-deploys instead, set Auto-Deploy to `On Commit` or `After CI Checks Pass`, confirm the linked branch is `develop`, and confirm the service has not been deployed to a specific commit because that disables automatic deploys.
 
 The `Auto Merge Approved Feature PRs` workflow enables GitHub auto-merge after a pull request is approved when all of these are true:
 
