@@ -34,6 +34,7 @@
             <p class="muted">This item is no longer accepting new offers.</p>
         {% elif current_user.is_authenticated %}
             <h2>Make an offer</h2>
+            <p class="wallet-note">Wallet available: <strong>{{ current_user.wallet_balance_cents | money }}</strong></p>
             <form method="POST" action="{{ url_for('views.submit_offer', listing_id=listing.id) }}" class="form-card compact-form">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <label>

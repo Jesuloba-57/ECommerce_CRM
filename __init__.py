@@ -58,6 +58,8 @@ def create_database():
 
 
 def ensure_user_columns():
+    from db_model import INITIAL_WALLET_BALANCE_CENTS
+
     inspector = inspect(db.engine)
     if "user" not in inspector.get_table_names():
         return
@@ -69,19 +71,29 @@ def ensure_user_columns():
         statements.append("ALTER TABLE user ADD COLUMN first_name VARCHAR(100)")
     if "last_name" not in existing_columns:
         statements.append("ALTER TABLE user ADD COLUMN last_name VARCHAR(100)")
+    if "wallet_balance_cents" not in existing_columns:
+        statements.append(
+            "ALTER TABLE user ADD COLUMN wallet_balance_cents "
+            f"INTEGER NOT NULL DEFAULT {INITIAL_WALLET_BALANCE_CENTS}"
+        )
     if "created_at" not in existing_columns:
         statements.append("ALTER TABLE user ADD COLUMN created_at DATETIME")
-
-    if not statements:
-        return
 
     with db.engine.begin() as connection:
         for statement in statements:
             connection.execute(text(statement))
+        if "wallet_balance_cents" in existing_columns:
+            connection.execute(
+                text(
+                    "UPDATE user SET wallet_balance_cents = :initial_balance "
+                    "WHERE wallet_balance_cents IS NULL"
+                ),
+                {"initial_balance": INITIAL_WALLET_BALANCE_CENTS},
+            )
 
 
 def seed_marketplace_data():
-    from db_model import Listing, PriceHistory, User, utc_now
+    from db_model import INITIAL_WALLET_BALANCE_CENTS, Listing, PriceHistory, User, utc_now
 
     if Listing.query.count() > 0:
         return
@@ -95,6 +107,7 @@ def seed_marketplace_data():
             status=True,
             first_name="Campus",
             last_name="Seller",
+            wallet_balance_cents=INITIAL_WALLET_BALANCE_CENTS,
             created_at=utc_now(),
         )
         db.session.add(seller)
@@ -106,6 +119,8 @@ def seed_marketplace_data():
         seller.last_name = "Seller"
     if seller.created_at is None:
         seller.created_at = utc_now()
+    if seller.wallet_balance_cents is None:
+        seller.wallet_balance_cents = INITIAL_WALLET_BALANCE_CENTS
 
     sample_listings = [
         {

@@ -1,6 +1,6 @@
 # Canes Market
 
-Canes Market is a Flask marketplace app for browsing campus-friendly listings, creating seller accounts, publishing items, tracking price history, and sending or responding to offers.
+Canes Market is a Flask marketplace app for browsing campus-friendly listings, creating seller accounts, publishing items, tracking price history, sending or responding to offers, and settling completed purchases with an in-app wallet.
 
 ## Tech Stack
 
@@ -59,6 +59,8 @@ Password: marketplace123
 
 You can also create a new account from `/signup`.
 
+New accounts start with `$100.00` in app-only wallet currency. When a seller accepts a funded offer, the buyer's wallet is debited and the seller's wallet is credited.
+
 ## Environment Variables
 
 These are optional for local development:
@@ -77,7 +79,7 @@ If `DATABASE_URL` is not set, the app defaults to a local SQLite database named 
 - `/signup` - Create an account
 - `/login` - Log in
 - `/seller` - Seller dashboard for creating listings, updating prices, and responding to offers
-- `/activity` - Buyer and seller offer activity
+- `/activity` - Buyer and seller offer activity with wallet balance and completed transfers
 - `/cart` - Alias for the activity page
 - `/conversations` - JSON list of the signed-in user's buyer/seller chats
 - `/conversations/<id>` - JSON detail for one chat, including messages
@@ -116,11 +118,10 @@ If database state looks stale, reset `instance/database.db` and restart the app.
 
 ## Tests
 
-There is not an automated test suite in this repository yet. For now, verify changes by running the app locally and walking through signup, login, listing creation, price updates, offer submission, and seller responses.
 Run the smoke test suite with:
 
 ```bash
 python -m unittest discover
 ```
 
-The tests use a temporary SQLite database and cover the main marketplace paths: browsing seeded listings, CSRF protection, signup, listing creation, price history, offer submission, seller acceptance, conversation creation, message sending, read receipts, and chat access control.
+The tests use a temporary SQLite database and cover the main marketplace paths: browsing seeded listings, CSRF protection, signup wallet credit, listing creation, price history, funded offer submission, seller acceptance with wallet transfer, conversation creation, message sending, read receipts, and chat access control.
