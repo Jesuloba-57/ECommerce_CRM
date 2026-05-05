@@ -2,6 +2,7 @@ import os
 import re
 import tempfile
 import unittest
+from io import BytesIO
 
 from werkzeug.security import generate_password_hash
 
@@ -142,6 +143,40 @@ class MarketplaceSmokeTests(unittest.TestCase):
             history = PriceHistory.query.filter_by(listing_id=listing.id).one()
             self.assertIsNone(history.old_price_cents)
             self.assertEqual(history.new_price_cents, 8450)
+
+    def test_seller_can_upload_listing_image(self):
+        response = self._login("demo-seller@canesmarket.local", "marketplace123")
+        self.assertEqual(response.status_code, 200)
+
+        image_bytes = b"uploaded-image-bytes"
+        token = self._csrf_token("/seller")
+        response = self.client.post(
+            "/seller/listings",
+            data={
+                "_csrf_token": token,
+                "title": "Uploaded Image Listing",
+                "price": "42.00",
+                "category": "Collectibles",
+                "condition": "Like new",
+                "location": "Student union",
+                "image_file": (BytesIO(image_bytes), "collectible.png", "image/png"),
+                "description": "Listing with an uploaded product image.",
+                "note": "Image upload test",
+            },
+            content_type="multipart/form-data",
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with self.app.app_context():
+            listing = Listing.query.filter_by(title="Uploaded Image Listing").one()
+            image_url = listing.image_url
+            self.assertEqual(image_url, f"/listings/{listing.id}/image")
+
+        response = self.client.get(image_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content_type, "image/png")
+        self.assertEqual(response.data, image_bytes)
 
     def test_seller_can_update_price_and_history_is_saved(self):
         response = self._login("demo-seller@canesmarket.local", "marketplace123")

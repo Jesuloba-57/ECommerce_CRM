@@ -38,7 +38,7 @@
             </div>
         </div>
 
-        <form method="POST" action="{{ url_for('views.create_listing') }}" class="form-card create-form">
+        <form method="POST" action="{{ url_for('views.create_listing') }}" class="form-card create-form" enctype="multipart/form-data">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <label>
                 <span>Title</span>
@@ -69,8 +69,14 @@
                 <input type="text" name="location" placeholder="On-campus pickup or shipping available" required>
             </label>
             <label class="full-width">
-                <span>Image URL</span>
-                <input type="text" name="image_url" placeholder="/static/images/webImage.jpeg">
+                <span>Product image</span>
+                <span class="dropzone" data-image-upload>
+                    <input type="file" name="image_file" accept="image/jpeg,image/png,image/gif,image/webp">
+                    <span class="dropzone-content">
+                        <strong>Choose image</strong>
+                        <small data-file-name>PNG, JPG, GIF, or WebP up to 3 MB</small>
+                    </span>
+                </span>
             </label>
             <label class="full-width">
                 <span>Description</span>
@@ -235,4 +241,43 @@
         </div>
     {% endif %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const imageUpload = document.querySelector("[data-image-upload]");
+
+    if (imageUpload) {
+        const imageInput = imageUpload.querySelector("input[type='file']");
+        const fileName = imageUpload.querySelector("[data-file-name]");
+
+        const showFileName = () => {
+            const [file] = imageInput.files;
+            fileName.textContent = file ? file.name : "PNG, JPG, GIF, or WebP up to 3 MB";
+        };
+
+        ["dragenter", "dragover"].forEach((eventName) => {
+            imageUpload.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                imageUpload.classList.add("is-dragging");
+            });
+        });
+
+        ["dragleave", "drop"].forEach((eventName) => {
+            imageUpload.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                imageUpload.classList.remove("is-dragging");
+            });
+        });
+
+        imageUpload.addEventListener("drop", (event) => {
+            if (event.dataTransfer.files.length > 0) {
+                imageInput.files = event.dataTransfer.files;
+                showFileName();
+            }
+        });
+
+        imageInput.addEventListener("change", showFileName);
+    }
+</script>
 {% endblock %}

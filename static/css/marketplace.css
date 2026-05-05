@@ -415,6 +415,45 @@ textarea:focus {
     border-color: rgba(216, 97, 44, 0.42);
 }
 
+.dropzone {
+    position: relative;
+    display: grid;
+    min-height: 138px;
+    place-items: center;
+    padding: 22px;
+    border: 2px dashed rgba(216, 97, 44, 0.38);
+    border-radius: var(--radius-md);
+    background: rgba(253, 225, 211, 0.32);
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.dropzone:hover,
+.dropzone.is-dragging {
+    border-color: var(--accent);
+    background: rgba(253, 225, 211, 0.58);
+    transform: translateY(-1px);
+}
+
+.dropzone input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.dropzone-content {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    text-align: center;
+    pointer-events: none;
+}
+
+.dropzone-content strong {
+    color: var(--accent-dark);
+    font-family: "Space Grotesk", sans-serif;
+}
+
 .card-grid {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }

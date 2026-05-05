@@ -62,6 +62,8 @@ You can also create a new account from `/signup`.
 
 New accounts start with `$100.00` in app-only wallet currency. When a seller accepts a funded offer, the buyer's wallet is debited and the seller's wallet is credited.
 
+Sellers can upload listing images from the seller dashboard by dragging an image onto the upload area or browsing for a file. Uploaded images are stored in the application database so they survive Render redeploys; static seed images still load from `static/images`.
+
 ## Environment Variables
 
 These are optional for local development:
@@ -138,6 +140,7 @@ After each deployment, verify:
 - A buyer can make an offer within their wallet balance.
 - The demo seller can accept the offer.
 - The buyer wallet is debited and the seller wallet is credited.
+- A seller can publish a listing with an uploaded product image.
 
 ## Useful Routes
 

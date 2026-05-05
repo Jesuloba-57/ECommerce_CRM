@@ -1,15 +1,17 @@
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload
+from werkzeug.utils import secure_filename
 
 from __init__ import db
 from db_model import (
     Conversation,
     Listing,
+    ListingImage,
     Message,
     Offer,
     PriceHistory,
@@ -32,6 +34,8 @@ LISTING_CONDITIONS = ["New", "Like new", "Good", "Fair", "For parts"]
 LISTING_STATUSES = ["active", "paused", "sold", "archived"]
 DEFAULT_IMAGE_URL = "/static/images/webImage.jpeg"
 MAX_MESSAGE_LENGTH = 2000
+MAX_LISTING_IMAGE_BYTES = 3 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
 
 def parse_price_to_cents(raw_price):
@@ -219,6 +223,27 @@ def request_message_body():
     return body
 
 
+def request_listing_image_upload():
+    image_file = request.files.get("image_file")
+    if image_file is None or not image_file.filename:
+        return None
+
+    if image_file.mimetype not in ALLOWED_IMAGE_TYPES:
+        raise ValueError("Upload a JPG, PNG, GIF, or WebP image.")
+
+    image_data = image_file.read()
+    if not image_data:
+        raise ValueError("Choose an image before publishing the listing.")
+    if len(image_data) > MAX_LISTING_IMAGE_BYTES:
+        raise ValueError("Listing image must be 3 MB or smaller.")
+
+    return {
+        "filename": secure_filename(image_file.filename) or "listing-image",
+        "content_type": image_file.mimetype,
+        "data": image_data,
+    }
+
+
 @views.route("/healthz")
 def healthz():
     try:
@@ -228,6 +253,18 @@ def healthz():
         return jsonify({"status": "error", "database": "unavailable"}), 503
 
     return jsonify({"status": "ok", "database": "ok"})
+
+
+@views.route("/listings/<int:listing_id>/image")
+def listing_image(listing_id):
+    image = db.session.get(ListingImage, listing_id)
+    if image is None:
+        abort(404)
+
+    response = Response(image.data, mimetype=image.content_type)
+    response.cache_control.public = True
+    response.cache_control.max_age = 3600
+    return response
 
 
 @views.route("/conversations")
@@ -447,6 +484,12 @@ def create_listing():
         flash(str(exc), "error")
         return redirect(url_for("views.seller_dashboard"))
 
+    try:
+        uploaded_image = request_listing_image_upload()
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("views.seller_dashboard"))
+
     if not title or not description or not location:
         flash("Title, description, and location are required.", "error")
         return redirect(url_for("views.seller_dashboard"))
@@ -471,6 +514,11 @@ def create_listing():
     )
     db.session.add(listing)
     db.session.flush()
+
+    if uploaded_image:
+        db.session.add(ListingImage(listing_id=listing.id, **uploaded_image))
+        listing.image_url = url_for("views.listing_image", listing_id=listing.id)
+
     db.session.add(
         PriceHistory(
             listing_id=listing.id,

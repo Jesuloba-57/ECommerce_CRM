@@ -123,6 +123,23 @@ class Listing(db.Model):
         cascade="all, delete-orphan",
         lazy=True,
     )
+    uploaded_image = db.relationship(
+        "ListingImage",
+        back_populates="listing",
+        cascade="all, delete-orphan",
+        uselist=False,
+        lazy=True,
+    )
+
+
+class ListingImage(db.Model):
+    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    content_type = db.Column(db.String(100), nullable=False)
+    data = db.Column(db.LargeBinary, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
+
+    listing = db.relationship("Listing", back_populates="uploaded_image")
 
 
 class PriceHistory(db.Model):
