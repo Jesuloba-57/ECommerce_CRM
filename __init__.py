@@ -16,11 +16,12 @@ CSRF_SESSION_KEY = "_csrf_token"
 
 def create_app():
     app = Flask(__name__)
+    database_url = os.environ.get("DATABASE_URL", f"sqlite:///{DB_NAME}")
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-marketplace-secret")
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-        "DATABASE_URL",
-        f"sqlite:///{DB_NAME}",
-    )
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     db.init_app(app)
 
@@ -65,19 +66,38 @@ def ensure_user_columns():
         return
 
     existing_columns = {column["name"] for column in inspector.get_columns("user")}
+    preparer = db.engine.dialect.identifier_preparer
+    user_table = preparer.quote("user")
+    wallet_column = preparer.quote("wallet_balance_cents")
+
+    def column_definition(name, column_type, suffix=""):
+        column_name = preparer.quote(name)
+        type_sql = column_type.compile(dialect=db.engine.dialect)
+        return f"{column_name} {type_sql}{suffix}"
+
     statements = []
 
     if "first_name" not in existing_columns:
-        statements.append("ALTER TABLE user ADD COLUMN first_name VARCHAR(100)")
-    if "last_name" not in existing_columns:
-        statements.append("ALTER TABLE user ADD COLUMN last_name VARCHAR(100)")
-    if "wallet_balance_cents" not in existing_columns:
         statements.append(
-            "ALTER TABLE user ADD COLUMN wallet_balance_cents "
-            f"INTEGER NOT NULL DEFAULT {INITIAL_WALLET_BALANCE_CENTS}"
+            f"ALTER TABLE {user_table} ADD COLUMN "
+            f"{column_definition('first_name', db.String(100))}"
+        )
+    if "last_name" not in existing_columns:
+        statements.append(
+            f"ALTER TABLE {user_table} ADD COLUMN "
+            f"{column_definition('last_name', db.String(100))}"
+        )
+    if "wallet_balance_cents" not in existing_columns:
+        wallet_suffix = f" NOT NULL DEFAULT {INITIAL_WALLET_BALANCE_CENTS}"
+        statements.append(
+            f"ALTER TABLE {user_table} ADD COLUMN "
+            f"{column_definition('wallet_balance_cents', db.Integer(), wallet_suffix)}"
         )
     if "created_at" not in existing_columns:
-        statements.append("ALTER TABLE user ADD COLUMN created_at DATETIME")
+        statements.append(
+            f"ALTER TABLE {user_table} ADD COLUMN "
+            f"{column_definition('created_at', db.DateTime())}"
+        )
 
     with db.engine.begin() as connection:
         for statement in statements:
@@ -85,8 +105,8 @@ def ensure_user_columns():
         if "wallet_balance_cents" in existing_columns:
             connection.execute(
                 text(
-                    "UPDATE user SET wallet_balance_cents = :initial_balance "
-                    "WHERE wallet_balance_cents IS NULL"
+                    f"UPDATE {user_table} SET {wallet_column} = :initial_balance "
+                    f"WHERE {wallet_column} IS NULL"
                 ),
                 {"initial_balance": INITIAL_WALLET_BALANCE_CENTS},
             )
