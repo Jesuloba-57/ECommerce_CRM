@@ -6,7 +6,7 @@ import unittest
 from werkzeug.security import generate_password_hash
 
 from __init__ import create_app, db
-from db_model import Conversation, Listing, Message, Offer, PriceHistory, User
+from db_model import Conversation, Listing, Message, Offer, PriceHistory, User, WalletTransaction
 
 
 CSRF_RE = re.compile(
@@ -62,7 +62,7 @@ class MarketplaceSmokeTests(unittest.TestCase):
             follow_redirects=True,
         )
 
-    def _create_buyer(self, email="buyer@example.com"):
+    def _create_buyer(self, email="buyer@example.com", wallet_balance_cents=10000):
         with self.app.app_context():
             buyer = User(
                 id=email.split("@")[0].replace(".", "-")[:15],
@@ -71,6 +71,7 @@ class MarketplaceSmokeTests(unittest.TestCase):
                 status=True,
                 first_name="Test",
                 last_name="Buyer",
+                wallet_balance_cents=wallet_balance_cents,
             )
             db.session.add(buyer)
             db.session.commit()
@@ -128,6 +129,9 @@ class MarketplaceSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
         with self.app.app_context():
+            user = User.query.filter_by(email="alex@example.com").one()
+            self.assertEqual(user.wallet_balance_cents, 10000)
+
             listing = Listing.query.filter_by(title="Graphing Calculator").one()
             self.assertEqual(listing.price_cents, 8450)
             history = PriceHistory.query.filter_by(listing_id=listing.id).one()
@@ -171,7 +175,7 @@ class MarketplaceSmokeTests(unittest.TestCase):
             "/listings/1/offers",
             data={
                 "_csrf_token": token,
-                "amount": "640.00",
+                "amount": "64.00",
                 "message": "I can pick it up today.",
             },
             follow_redirects=True,
@@ -200,14 +204,46 @@ class MarketplaceSmokeTests(unittest.TestCase):
         with self.app.app_context():
             offer = db.session.get(Offer, offer_id)
             listing = db.session.get(Listing, 1)
+            buyer = User.query.filter_by(email="buyer@example.com").one()
+            seller = User.query.filter_by(email="demo-seller@canesmarket.local").one()
+            wallet_transaction = WalletTransaction.query.one()
             conversation = Conversation.query.one()
             message_types = [message.message_type for message in conversation.messages]
             self.assertEqual(offer.status, "accepted")
             self.assertEqual(offer.seller_response, "Deal.")
             self.assertEqual(listing.status, "sold")
+            self.assertEqual(buyer.wallet_balance_cents, 3600)
+            self.assertEqual(seller.wallet_balance_cents, 16400)
+            self.assertEqual(wallet_transaction.amount_cents, 6400)
+            self.assertEqual(wallet_transaction.buyer_id, buyer.id)
+            self.assertEqual(wallet_transaction.seller_id, seller.id)
             self.assertEqual(conversation.deal_status, "accepted")
             self.assertIn("offer", message_types)
             self.assertIn("accepted", message_types)
+
+    def test_buyer_cannot_offer_more_than_wallet_balance(self):
+        self._create_buyer()
+
+        response = self._login("buyer@example.com", "password123")
+        self.assertEqual(response.status_code, 200)
+
+        token = self._csrf_token("/listings/1")
+        response = self.client.post(
+            "/listings/1/offers",
+            data={
+                "_csrf_token": token,
+                "amount": "125.00",
+                "message": "Trying to spend beyond the app wallet.",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"wallet balance", response.data)
+
+        with self.app.app_context():
+            self.assertEqual(Offer.query.count(), 0)
+            buyer = User.query.filter_by(email="buyer@example.com").one()
+            self.assertEqual(buyer.wallet_balance_cents, 10000)
 
     def test_offer_starts_conversation_and_participants_can_chat(self):
         buyer_id = self._create_buyer("chat-buyer@example.com")
@@ -220,7 +256,7 @@ class MarketplaceSmokeTests(unittest.TestCase):
             "/listings/1/offers",
             data={
                 "_csrf_token": token,
-                "amount": "640.00",
+                "amount": "64.00",
                 "message": "Could you meet near the library?",
             },
             follow_redirects=True,
@@ -291,7 +327,7 @@ class MarketplaceSmokeTests(unittest.TestCase):
             "/listings/1/offers",
             data={
                 "_csrf_token": token,
-                "amount": "600.00",
+                "amount": "60.00",
                 "message": "Starting the private chat.",
             },
             follow_redirects=True,

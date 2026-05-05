@@ -4,7 +4,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from __init__ import db
-from db_model import User
+from db_model import INITIAL_WALLET_BALANCE_CENTS, User
 
 auth = Blueprint("auth", __name__)
 
@@ -60,11 +60,12 @@ def sign_up():
                 status=True,
                 first_name=first_name,
                 last_name=last_name,
+                wallet_balance_cents=INITIAL_WALLET_BALANCE_CENTS,
             )
             db.session.add(new_user)
             db.session.commit()
             login_user(new_user)
-            flash("Account created. You can start selling right away.", "success")
+            flash("Account created with $100.00 in app currency.", "success")
             return redirect(url_for("views.seller_dashboard"))
 
     return render_template("signup.html")
