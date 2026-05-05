@@ -1,6 +1,7 @@
 # Canes Market
 
 Canes Market is a Flask marketplace app for browsing campus-friendly listings, creating seller accounts, publishing items, tracking price history, sending or responding to offers, and settling completed purchases with an in-app wallet.
+Canes Market is a Flask marketplace app for browsing campus-friendly listings, creating seller accounts, publishing items, tracking price history, sending or responding to offers, and settling completed purchases with an in-app wallet.
 
 ## Tech Stack
 
@@ -162,6 +163,7 @@ After each deployment, verify:
 - `/login` - Log in
 - `/seller` - Seller dashboard for creating listings, updating prices, and responding to offers
 - `/activity` - Buyer and seller offer activity with wallet balance and completed transfers
+- `/activity` - Buyer and seller offer activity with wallet balance and completed transfers
 - `/cart` - Alias for the activity page
 - `/conversations` - JSON list of the signed-in user's buyer/seller chats
 - `/conversations/<id>` - JSON detail for one chat, including messages
@@ -206,4 +208,5 @@ Run the smoke test suite with:
 python -m unittest discover
 ```
 
+The tests use a temporary SQLite database and cover the main marketplace paths: browsing seeded listings, CSRF protection, signup wallet credit, listing creation, price history, funded offer submission, seller acceptance with wallet transfer, conversation creation, message sending, read receipts, and chat access control.
 The tests use a temporary SQLite database and cover the main marketplace paths: browsing seeded listings, CSRF protection, signup wallet credit, listing creation, price history, funded offer submission, seller acceptance with wallet transfer, conversation creation, message sending, read receipts, and chat access control.
