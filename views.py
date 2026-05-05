@@ -2,7 +2,8 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload
 
 from __init__ import db
@@ -216,6 +217,17 @@ def request_message_body():
         abort(400, description=f"Message body must be {MAX_MESSAGE_LENGTH} characters or fewer.")
 
     return body
+
+
+@views.route("/healthz")
+def healthz():
+    try:
+        db.session.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify({"status": "error", "database": "unavailable"}), 503
+
+    return jsonify({"status": "ok", "database": "ok"})
 
 
 @views.route("/conversations")

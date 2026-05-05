@@ -77,6 +77,8 @@ If `DATABASE_URL` is not set, the app defaults to a local SQLite database named 
 
 The project includes `.python-version` to pin Render to Python 3.13.
 
+Render is configured to watch the `develop` branch for the live testing deployment.
+
 Use these Render settings:
 
 ```text
@@ -86,9 +88,61 @@ Start Command: gunicorn main:app
 
 `gunicorn app:app` also works because `app.py` exposes the same Flask app for Render's default Flask quickstart command.
 
+Production-style environment variables:
+
+```text
+DATABASE_URL=<Neon or Render Postgres connection string>
+SECRET_KEY=<strong generated secret>
+```
+
+The deployed app exposes `/healthz` for a quick app/database readiness check.
+
+Free-tier note: Render web services may sleep after inactivity, so open the site a few minutes before a live demo.
+
+## CI/CD Workflow
+
+The project uses GitHub Actions for CI and Render for deployment:
+
+```text
+feature/* branch -> PR into develop -> CI test job -> review approval -> auto-merge -> Render deploy
+```
+
+The `CI` workflow runs on pushes and pull requests to `develop` and `main`.
+
+The `Auto Merge Approved Feature PRs` workflow enables GitHub auto-merge after a pull request is approved when all of these are true:
+
+- The pull request targets `develop`.
+- The source branch starts with `feature/`.
+- The pull request is not a draft.
+- GitHub branch protection still requires the `test` status check and review approval before merging.
+
+Repository settings required:
+
+```text
+Settings > General > Pull Requests > Allow auto-merge
+Settings > Branches > develop protection:
+- Require a pull request before merging
+- Require at least one approval
+- Require status checks before merging
+- Select the required status check named test
+```
+
+Do not use force-push or admin bypass for normal development. If CI or review requirements are not met, auto-merge should wait instead of overriding them.
+
+## Live Smoke Test
+
+After each deployment, verify:
+
+- `/healthz` returns `{"status": "ok", "database": "ok"}`.
+- A new user receives `$100.00` in app wallet balance.
+- A buyer can make an offer within their wallet balance.
+- The demo seller can accept the offer.
+- The buyer wallet is debited and the seller wallet is credited.
+
 ## Useful Routes
 
 - `/` - Browse marketplace listings
+- `/healthz` - App and database health check
 - `/about` - Project and marketplace feature overview
 - `/signup` - Create an account
 - `/login` - Log in

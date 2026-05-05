@@ -86,6 +86,11 @@ class MarketplaceSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Price history", response.data)
 
+    def test_health_check_reports_database_ready(self):
+        response = self.client.get("/healthz")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"status": "ok", "database": "ok"})
+
     def test_missing_csrf_token_is_rejected_for_post_requests(self):
         response = self.client.post(
             "/login",
