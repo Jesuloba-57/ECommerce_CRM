@@ -177,6 +177,22 @@ input, select, textarea, button {
     font-size: 0.9rem;
 }
 
+.user-chip {
+    display: grid;
+    gap: 2px;
+    text-align: right;
+    line-height: 1.1;
+}
+
+.user-chip-label {
+    color: var(--muted);
+    font-size: 0.78rem;
+}
+
+.user-chip strong {
+    font-family: "Space Grotesk", sans-serif;
+}
+
 .header-right a {
     font-weight: 700;
     font-size: 0.95rem;
@@ -222,6 +238,10 @@ input, select, textarea, button {
     width: min(1200px, calc(100% - 48px));
     margin: 0 auto;
     padding: 28px 0 64px;
+}
+
+.user-chip small {
+    display: block;
 }
 
 .page-content {
