@@ -157,6 +157,10 @@ button {
     font-size: 0.82rem;
 }
 
+.user-chip small {
+    display: block;
+}
+
 .page-content {
     display: grid;
     gap: 24px;
@@ -345,7 +349,8 @@ button {
 }
 
 .compact-stats {
-    max-width: 460px;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    max-width: 560px;
 }
 
 .stat-card,
@@ -644,6 +649,10 @@ textarea:focus {
     display: grid;
     align-content: start;
     gap: 18px;
+}
+
+.wallet-note {
+    color: var(--muted);
 }
 
 .offer-card {

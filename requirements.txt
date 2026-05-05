@@ -3,3 +3,5 @@ Flask
 Flask-SQLAlchemy
 Flask-Login
 shortuuid
+gunicorn
+psycopg2-binary

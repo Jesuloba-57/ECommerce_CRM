@@ -4,6 +4,8 @@ from flask_login import UserMixin
 
 from __init__ import db
 
+INITIAL_WALLET_BALANCE_CENTS = 10000
+
 
 def utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -16,6 +18,11 @@ class User(db.Model, UserMixin):
     status = db.Column(db.Boolean, default=True)
     first_name = db.Column(db.String(100))
     last_name = db.Column(db.String(100))
+    wallet_balance_cents = db.Column(
+        db.Integer,
+        nullable=False,
+        default=INITIAL_WALLET_BALANCE_CENTS,
+    )
     created_at = db.Column(db.DateTime, default=utc_now)
 
     listings = db.relationship(
@@ -52,6 +59,18 @@ class User(db.Model, UserMixin):
         "Message",
         back_populates="sender",
         foreign_keys="Message.sender_id",
+        lazy=True,
+    )
+    wallet_purchases = db.relationship(
+        "WalletTransaction",
+        back_populates="buyer",
+        foreign_keys="WalletTransaction.buyer_id",
+        lazy=True,
+    )
+    wallet_sales = db.relationship(
+        "WalletTransaction",
+        back_populates="seller",
+        foreign_keys="WalletTransaction.seller_id",
         lazy=True,
     )
 
@@ -209,3 +228,28 @@ class Message(db.Model):
         foreign_keys=[sender_id],
     )
     offer = db.relationship("Offer", back_populates="messages")
+
+
+class WalletTransaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    offer_id = db.Column(db.Integer, db.ForeignKey("offer.id"), nullable=False, unique=True)
+    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False, index=True)
+    buyer_id = db.Column(db.String(15), db.ForeignKey("user.id"), nullable=False, index=True)
+    seller_id = db.Column(db.String(15), db.ForeignKey("user.id"), nullable=False, index=True)
+    amount_cents = db.Column(db.Integer, nullable=False)
+    buyer_balance_after_cents = db.Column(db.Integer, nullable=False)
+    seller_balance_after_cents = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
+
+    offer = db.relationship("Offer")
+    listing = db.relationship("Listing")
+    buyer = db.relationship(
+        "User",
+        back_populates="wallet_purchases",
+        foreign_keys=[buyer_id],
+    )
+    seller = db.relationship(
+        "User",
+        back_populates="wallet_sales",
+        foreign_keys=[seller_id],
+    )

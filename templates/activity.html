@@ -7,8 +7,53 @@
     <div>
         <p class="eyebrow">Marketplace activity</p>
         <h1>Track the offers you send and the ones buyers send you.</h1>
-        <p class="muted">This page replaces the old static cart demo with something that fits a marketplace workflow.</p>
+        <p class="muted">Use your app wallet to make offers. Completed purchases move funds from buyer to seller inside Canes Market.</p>
     </div>
+    <div class="stat-grid compact-stats">
+        <article class="stat-card">
+            <span class="stat-label">Wallet balance</span>
+            <strong>{{ current_user.wallet_balance_cents | money }}</strong>
+        </article>
+        <article class="stat-card">
+            <span class="stat-label">Buying offers</span>
+            <strong>{{ offers_made|length }}</strong>
+        </article>
+        <article class="stat-card">
+            <span class="stat-label">Sales offers</span>
+            <strong>{{ offers_received|length }}</strong>
+        </article>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Wallet ledger</p>
+            <h2>Completed transfers</h2>
+        </div>
+    </div>
+
+    {% if wallet_transactions %}
+        <div class="stack-list">
+            {% for transaction in wallet_transactions %}
+                <div class="stack-card seller-card">
+                    <div>
+                        <h3><a href="{{ url_for('views.listing_detail', listing_id=transaction.listing.id) }}">{{ transaction.listing.title }}</a></h3>
+                        {% if transaction.buyer_id == current_user.id %}
+                            <p>Paid {{ transaction.seller.display_name }} on {{ transaction.created_at | datetime }}</p>
+                        {% else %}
+                            <p>Received from {{ transaction.buyer.display_name }} on {{ transaction.created_at | datetime }}</p>
+                        {% endif %}
+                    </div>
+                    <strong>
+                        {% if transaction.buyer_id == current_user.id %}-{% else %}+{% endif %}{{ transaction.amount_cents | money }}
+                    </strong>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="muted">Completed purchases will appear here after a seller accepts a funded offer.</p>
+    {% endif %}
 </section>
 
 <section class="split-layout">

@@ -6,7 +6,16 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload, selectinload
 
 from __init__ import db
-from db_model import Conversation, Listing, Message, Offer, PriceHistory, User, utc_now
+from db_model import (
+    Conversation,
+    Listing,
+    Message,
+    Offer,
+    PriceHistory,
+    User,
+    WalletTransaction,
+    utc_now,
+)
 
 views = Blueprint("views", __name__)
 
@@ -49,6 +58,10 @@ def get_owned_listing(listing_id):
 
 def money_label(value):
     return f"${value / 100:,.2f}"
+
+
+def wallet_balance_cents(user):
+    return user.wallet_balance_cents or 0
 
 
 def datetime_payload(value):
@@ -391,6 +404,7 @@ def seller_dashboard():
         "active": sum(1 for listing in listings if listing.status == "active"),
         "sold": sum(1 for listing in listings if listing.status == "sold"),
         "offers": len(incoming_offers),
+        "wallet_balance_cents": wallet_balance_cents(current_user),
     }
 
     return render_template(
@@ -594,6 +608,15 @@ def submit_offer(listing_id):
         flash(str(exc), "error")
         return redirect(url_for("views.listing_detail", listing_id=listing.id))
 
+    if amount_cents > wallet_balance_cents(current_user):
+        flash(
+            "Your wallet balance is "
+            f"{money_label(wallet_balance_cents(current_user))}; "
+            "send an offer within your available app currency.",
+            "error",
+        )
+        return redirect(url_for("views.listing_detail", listing_id=listing.id))
+
     message = request.form.get("message", "").strip()
 
     offer = Offer(
@@ -632,7 +655,15 @@ def submit_offer(listing_id):
 @views.route("/offers/<int:offer_id>/respond", methods=["POST"])
 @login_required
 def respond_to_offer(offer_id):
-    offer = db.get_or_404(Offer, offer_id, options=[joinedload(Offer.listing)])
+    offer = db.get_or_404(
+        Offer,
+        offer_id,
+        options=[
+            joinedload(Offer.listing),
+            joinedload(Offer.buyer),
+            joinedload(Offer.seller),
+        ],
+    )
     if offer.seller_id != current_user.id:
         abort(403)
 
@@ -650,6 +681,19 @@ def respond_to_offer(offer_id):
     )
 
     if action == "accept":
+        buyer = offer.buyer
+        seller = offer.seller
+        if wallet_balance_cents(buyer) < offer.amount_cents:
+            flash(
+                f"{buyer.display_name}'s wallet only has "
+                f"{money_label(wallet_balance_cents(buyer))}, so this offer cannot be accepted.",
+                "error",
+            )
+            return redirect(url_for("views.seller_dashboard"))
+
+        buyer.wallet_balance_cents = wallet_balance_cents(buyer) - offer.amount_cents
+        seller.wallet_balance_cents = wallet_balance_cents(seller) + offer.amount_cents
+
         offer.status = "accepted"
         offer.seller_response = response_text or "Offer accepted."
         offer.responded_at = now
@@ -662,6 +706,17 @@ def respond_to_offer(offer_id):
             offer_id=offer.id,
             body=response_text or f"Offer accepted at {money_label(offer.amount_cents)}.",
             message_type="accepted",
+        )
+        db.session.add(
+            WalletTransaction(
+                offer_id=offer.id,
+                listing_id=offer.listing_id,
+                buyer_id=buyer.id,
+                seller_id=seller.id,
+                amount_cents=offer.amount_cents,
+                buyer_balance_after_cents=buyer.wallet_balance_cents,
+                seller_balance_after_cents=seller.wallet_balance_cents,
+            )
         )
 
         competing_offers = Offer.query.filter(
@@ -688,7 +743,7 @@ def respond_to_offer(offer_id):
                 message_type="declined",
             )
 
-        flash("Offer accepted and listing marked as sold.", "success")
+        flash("Offer accepted. Buyer wallet debited and seller wallet credited.", "success")
 
     elif action == "decline":
         offer.status = "declined"
@@ -760,9 +815,26 @@ def activity():
         .all()
     )
 
+    wallet_transactions = (
+        WalletTransaction.query.options(
+            joinedload(WalletTransaction.listing),
+            joinedload(WalletTransaction.buyer),
+            joinedload(WalletTransaction.seller),
+        )
+        .filter(
+            or_(
+                WalletTransaction.buyer_id == current_user.id,
+                WalletTransaction.seller_id == current_user.id,
+            )
+        )
+        .order_by(WalletTransaction.created_at.desc())
+        .all()
+    )
+
     return render_template(
         "activity.html",
         offers_made=offers_made,
         offers_received=offers_received,
         listings=listings,
+        wallet_transactions=wallet_transactions,
     )
