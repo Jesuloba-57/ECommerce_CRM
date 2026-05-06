@@ -356,6 +356,9 @@ def listing_image(listing_id):
 @views.route("/conversations")
 @login_required
 def conversations():
+    if request.accept_mimetypes.best_match(["application/json", "text/html"]) == "text/html":
+        return render_template("conversations.html")
+
     user_conversations = (
         Conversation.query.options(
             joinedload(Conversation.listing),
@@ -386,6 +389,10 @@ def conversations():
 @views.route("/conversations/<int:conversation_id>")
 @login_required
 def conversation_detail(conversation_id):
+    if request.accept_mimetypes.best_match(["application/json", "text/html"]) == "text/html":
+        get_accessible_conversation(conversation_id)
+        return render_template("conversation_detail.html", conversation_id=conversation_id)
+
     conversation = get_accessible_conversation(conversation_id)
     return jsonify({"conversation": conversation_payload(conversation, include_messages=True)})
 

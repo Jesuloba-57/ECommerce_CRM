@@ -47,6 +47,7 @@
                 </label>
                 <button class="button" type="submit">Send offer</button>
             </form>
+            <button class="button button-secondary full-width" id="msg-seller-btn" data-listing-id="{{ listing.id }}">Message Seller</button>
         {% else %}
             <h2>Ready to negotiate?</h2>
             <p class="muted">Log in to make offers, track seller responses, and manage your own listings.</p>
@@ -203,4 +204,34 @@
         <p class="muted">No related listings yet.</p>
     {% endif %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const msgBtn = document.getElementById("msg-seller-btn");
+    if (msgBtn) {
+        msgBtn.addEventListener("click", async () => {
+            msgBtn.disabled = true;
+            msgBtn.textContent = "Finding conversation\u2026";
+            try {
+                const res = await fetch("/conversations", {
+                    headers: { "Accept": "application/json" }
+                });
+                const data = await res.json();
+                const listingId = parseInt(msgBtn.dataset.listingId, 10);
+                const convo = data.conversations.find(c => c.listing.id === listingId);
+                if (convo) {
+                    window.location.href = "/conversations/" + convo.id;
+                } else {
+                    msgBtn.disabled = false;
+                    msgBtn.textContent = "Message Seller";
+                    alert("Make an offer first to open a conversation with the seller.");
+                }
+            } catch {
+                msgBtn.disabled = false;
+                msgBtn.textContent = "Message Seller";
+            }
+        });
+    }
+</script>
 {% endblock %}

@@ -11,38 +11,55 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
-    <div class="page-shell">
-        <header class="site-header">
-            <a class="brand" href="{{ url_for('views.home') }}">
-                <span class="brand-mark">CM</span>
-                <span>
-                    <strong>Canes Market</strong>
-                    <small>Campus-friendly marketplace</small>
-                </span>
-            </a>
 
-            <nav class="site-nav">
-                <a href="{{ url_for('views.home') }}" class="{% if request.endpoint == 'views.home' %}active{% endif %}">Browse</a>
-                <a href="{{ url_for('views.about') }}" class="{% if request.endpoint == 'views.about' %}active{% endif %}">About</a>
-                {% if current_user.is_authenticated %}
-                    <a href="{{ url_for('views.seller_dashboard') }}" class="{% if request.endpoint == 'views.seller_dashboard' %}active{% endif %}">Sell</a>
-                    <a href="{{ url_for('views.activity') }}" class="{% if request.endpoint == 'views.activity' %}active{% endif %}">Activity</a>
-                    <a href="{{ url_for('auth.logout') }}">Logout</a>
-                {% else %}
-                    <a href="{{ url_for('auth.login') }}" class="{% if request.endpoint == 'auth.login' %}active{% endif %}">Login</a>
-                    <a href="{{ url_for('auth.sign_up') }}" class="button button-small">Create account</a>
-                {% endif %}
-            </nav>
+    <header class="site-header">
+        <div class="header-left">
+            <button class="hamburger-btn"
+                    id="hamburger-btn"
+                    aria-expanded="false"
+                    aria-controls="hamburger-nav"
+                    aria-label="Open navigation menu">
+                <svg width="20" height="16" viewBox="0 0 20 16" fill="none"
+                     xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <rect width="20" height="2" fill="currentColor"/>
+                    <rect y="7" width="20" height="2" fill="currentColor"/>
+                    <rect y="14" width="20" height="2" fill="currentColor"/>
+                </svg>
+            </button>
+            <a class="brand-wordmark" href="{{ url_for('views.home') }}">Canes Market</a>
+        </div>
 
+        <form class="header-search" method="GET" action="{{ url_for('views.home') }}" role="search">
+            <input type="search" name="q" value="{{ request.args.get('q', '') }}"
+                   placeholder="Search listings…" aria-label="Search listings">
+            <button type="submit">Search</button>
+        </form>
+
+        <div class="header-right">
             {% if current_user.is_authenticated %}
                 <div class="user-chip">
                     <span class="user-chip-label">{{ current_user.display_name }}</span>
                     <strong>{{ current_user.wallet_balance_cents | money }}</strong>
                     <small>App wallet</small>
                 </div>
+                <a href="{{ url_for('auth.logout') }}">Logout</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}">Login</a>
             {% endif %}
-        </header>
+        </div>
+    </header>
 
+    <nav class="hamburger-nav" id="hamburger-nav" aria-hidden="true">
+        <a href="{{ url_for('views.home') }}">Browse</a>
+        <a href="{{ url_for('views.about') }}">About</a>
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('views.seller_dashboard') }}">Sell</a>
+            <a href="{{ url_for('views.activity') }}">Activity</a>
+            <a href="{{ url_for('views.conversations') }}">Messages</a>
+        {% endif %}
+    </nav>
+
+    <div class="page-shell">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <section class="flash-stack">
@@ -57,6 +74,30 @@
             {% block content %}{% endblock %}
         </main>
     </div>
+
     {% block scripts %}{% endblock %}
+
+    <script>
+        (function () {
+            var btn = document.getElementById('hamburger-btn');
+            var nav = document.getElementById('hamburger-nav');
+            if (!btn || !nav) return;
+
+            btn.addEventListener('click', function () {
+                var open = nav.classList.toggle('is-open');
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                nav.setAttribute('aria-hidden', open ? 'false' : 'true');
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!btn.contains(e.target) && !nav.contains(e.target) && nav.classList.contains('is-open')) {
+                    nav.classList.remove('is-open');
+                    btn.setAttribute('aria-expanded', 'false');
+                    nav.setAttribute('aria-hidden', 'true');
+                }
+            });
+        })();
+    </script>
+
 </body>
 </html>
