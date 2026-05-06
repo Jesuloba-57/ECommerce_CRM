@@ -23,6 +23,13 @@
     </article>
 
 </div>
+
+<div class="deal-celebration" id="deal-celebration" aria-hidden="true" role="status">
+    <div class="deal-celebration-card">
+        <span class="deal-celebration-mark" aria-hidden="true">&#10003;</span>
+        <strong id="deal-celebration-message">Deal confirmed</strong>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -33,6 +40,7 @@
     let conversationStatus = "active";
     let lastMessageCount = 0;
     let pollingTimer = null;
+    let celebrationTimer = null;
 
     /* ── helpers ───────────────────────────────────────────────── */
 
@@ -63,6 +71,30 @@
     function formatTime(iso) {
         if (!iso) return "";
         return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function showDealCelebration(message, redirectUrl, redirectAfterMs) {
+        const overlay = document.getElementById("deal-celebration");
+        const messageEl = document.getElementById("deal-celebration-message");
+        if (!overlay || !messageEl) return;
+
+        window.clearTimeout(celebrationTimer);
+        messageEl.textContent = message || "Deal confirmed";
+        overlay.classList.add("is-visible");
+        overlay.setAttribute("aria-hidden", "false");
+
+        const delay = redirectAfterMs != null && Number.isFinite(Number(redirectAfterMs))
+            ? Number(redirectAfterMs)
+            : (redirectUrl ? 1800 : 2200);
+        celebrationTimer = window.setTimeout(() => {
+            if (redirectUrl) {
+                if (pollingTimer) window.clearInterval(pollingTimer);
+                window.location.assign(redirectUrl);
+                return;
+            }
+            overlay.classList.remove("is-visible");
+            overlay.setAttribute("aria-hidden", "true");
+        }, delay);
     }
 
     function latestActionableMessageIds(messages) {
@@ -327,6 +359,13 @@
             }
             lastMessageCount = -1;
             await loadConversation();
+            if (data.celebration_message) {
+                showDealCelebration(
+                    data.celebration_message,
+                    data.redirect_url || null,
+                    data.redirect_after_ms
+                );
+            }
         } catch (err) {
             if (errorEl) {
                 errorEl.textContent = err.message || "Could not update this offer.";

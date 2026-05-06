@@ -45,9 +45,12 @@
                             <p>Received from {{ transaction.buyer.display_name }} on {{ transaction.created_at | datetime }}</p>
                         {% endif %}
                     </div>
-                    <strong>
-                        {% if transaction.buyer_id == current_user.id %}-{% else %}+{% endif %}{{ transaction.amount_cents | money }}
-                    </strong>
+                    <div class="ledger-actions">
+                        <strong>
+                            {% if transaction.buyer_id == current_user.id %}-{% else %}+{% endif %}{{ transaction.amount_cents | money }}
+                        </strong>
+                        <a class="button button-small button-secondary" href="{{ url_for('views.receipt_detail', transaction_id=transaction.id) }}">Receipt</a>
+                    </div>
                 </div>
             {% endfor %}
         </div>

@@ -275,6 +275,14 @@ class MarketplaceSmokeTests(unittest.TestCase):
             wallet_transaction = WalletTransaction.query.one()
             conversation = Conversation.query.one()
             message_types = [message.message_type for message in conversation.messages]
+            sold_notification = Notification.query.filter_by(
+                user_id=seller.id,
+                kind="item_sold",
+            ).one()
+            buyer_notification = Notification.query.filter_by(
+                user_id=buyer.id,
+                kind="offer_accepted",
+            ).one()
             self.assertEqual(offer.status, "accepted")
             self.assertEqual(offer.seller_response, "Deal.")
             self.assertEqual(listing.status, "sold")
@@ -286,6 +294,71 @@ class MarketplaceSmokeTests(unittest.TestCase):
             self.assertEqual(conversation.deal_status, "accepted")
             self.assertIn("offer", message_types)
             self.assertIn("accepted", message_types)
+            self.assertEqual(sold_notification.title, "Item sold")
+            self.assertIn("$64.00", sold_notification.body)
+            self.assertIn(f"/receipts/{wallet_transaction.id}", sold_notification.target_url)
+            self.assertIn(f"/receipts/{wallet_transaction.id}", buyer_notification.target_url)
+            receipt_id = wallet_transaction.id
+
+        response = self.client.get(f"/receipts/{receipt_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"SOLD!", response.data)
+        self.assertIn(b"Original Price", response.data)
+        self.assertIn(b"Final Price", response.data)
+        self.assertIn(b"PENDING", response.data)
+
+    def test_seller_chat_accept_returns_sold_confirmation_payload(self):
+        self._create_buyer()
+
+        response = self._login("buyer@example.com", "password123")
+        self.assertEqual(response.status_code, 200)
+
+        token = self._csrf_token("/listings/1")
+        response = self.client.post(
+            "/listings/1/offers",
+            data={
+                "_csrf_token": token,
+                "amount": "64.00",
+                "message": "Can you confirm in chat?",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with self.app.app_context():
+            offer_id = Offer.query.one().id
+
+        self.client.get("/logout", follow_redirects=True)
+        response = self._login("demo-seller@canesmarket.local", "marketplace123")
+        self.assertEqual(response.status_code, 200)
+
+        token = self._csrf_token("/seller")
+        response = self.client.post(
+            f"/offers/{offer_id}/respond",
+            headers={
+                "Accept": "application/json",
+                "X-CSRFToken": token,
+            },
+            data={
+                "action": "accept",
+                "seller_response": "Sold from chat.",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["celebration_message"], "SOLD!")
+        self.assertNotIn("redirect_url", payload)
+        self.assertEqual(payload["conversation"]["deal_status"], "accepted")
+
+        with self.app.app_context():
+            wallet_transaction = WalletTransaction.query.one()
+            seller = User.query.filter_by(email="demo-seller@canesmarket.local").one()
+            sold_notification = Notification.query.filter_by(
+                user_id=seller.id,
+                kind="item_sold",
+            ).one()
+            self.assertIn(f"/receipts/{wallet_transaction.id}", payload["receipt_url"])
+            self.assertEqual(sold_notification.title, "Item sold")
 
     def test_buyer_can_accept_seller_counter_offer(self):
         self._create_buyer()
@@ -425,6 +498,11 @@ class MarketplaceSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         buyer_payload = response.get_json()
         self.assertEqual(buyer_payload["conversation"]["deal_status"], "accepted")
+        self.assertEqual(
+            buyer_payload["celebration_message"],
+            "CONGRATULATIONS WE HAVE A DEAL",
+        )
+        self.assertEqual(buyer_payload["redirect_after_ms"], 1800)
         self.assertIn(
             "accepted",
             [message["message_type"] for message in buyer_payload["conversation"]["messages"]],
@@ -432,8 +510,32 @@ class MarketplaceSmokeTests(unittest.TestCase):
 
         with self.app.app_context():
             offer = db.session.get(Offer, offer_id)
+            wallet_transaction = WalletTransaction.query.one()
             self.assertEqual(offer.status, "accepted")
-            self.assertEqual(WalletTransaction.query.one().amount_cents, 7000)
+            self.assertEqual(wallet_transaction.amount_cents, 7000)
+            self.assertIn(f"/receipts/{wallet_transaction.id}", buyer_payload["receipt_url"])
+            self.assertIn(f"/receipts/{wallet_transaction.id}", buyer_payload["redirect_url"])
+            receipt_id = wallet_transaction.id
+
+        response = self.client.get(f"/receipts/{receipt_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"CONGRATULATIONS WE HAVE A DEAL", response.data)
+        self.assertIn(b"Used MacBook Air M1", response.data)
+        self.assertIn(b"Original Price", response.data)
+        self.assertIn(b"$680.00", response.data)
+        self.assertIn(b"Final Price", response.data)
+        self.assertIn(b"$70.00", response.data)
+        self.assertIn(b"Shipping Details", response.data)
+        self.assertIn(b"PENDING", response.data)
+
+        response = self.client.get(f"/receipts/{receipt_id}/download")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("attachment", response.headers["Content-Disposition"])
+        receipt_text = response.get_data(as_text=True)
+        self.assertIn("Item: Used MacBook Air M1", receipt_text)
+        self.assertIn("Original Price: $680.00", receipt_text)
+        self.assertIn("Final Price: $70.00", receipt_text)
+        self.assertIn("Shipping Details: PENDING", receipt_text)
 
     def test_buyer_can_send_revised_offer_after_seller_counter(self):
         self._create_buyer()

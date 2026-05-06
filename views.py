@@ -88,11 +88,13 @@ def action_error(message, redirect_url, status_code=400, category="error"):
     return redirect(redirect_url)
 
 
-def action_success(message, redirect_url, conversation=None, category="success"):
+def action_success(message, redirect_url, conversation=None, category="success", extra=None):
     if wants_json_response():
         payload = {"message": message}
         if conversation is not None:
             payload["conversation"] = conversation_payload(conversation, include_messages=True)
+        if extra:
+            payload.update(extra)
         return jsonify(payload)
     flash(message, category)
     return redirect(redirect_url)
@@ -123,6 +125,22 @@ def get_accessible_conversation(conversation_id):
     if not current_user_can_access_conversation(conversation):
         abort(403)
     return conversation
+
+
+def get_accessible_wallet_transaction(transaction_id):
+    transaction = db.get_or_404(
+        WalletTransaction,
+        transaction_id,
+        options=[
+            joinedload(WalletTransaction.offer),
+            joinedload(WalletTransaction.listing),
+            joinedload(WalletTransaction.buyer),
+            joinedload(WalletTransaction.seller),
+        ],
+    )
+    if current_user.id not in {transaction.buyer_id, transaction.seller_id}:
+        abort(403)
+    return transaction
 
 
 def find_or_create_conversation(listing, buyer_id, seller_id):
@@ -271,6 +289,53 @@ def notify_conversation_recipient(conversation, message):
         conversation_id=conversation.id,
         message_id=message.id,
     )
+
+
+def notify_item_sold(conversation, offer, transaction):
+    return create_notification(
+        user_id=offer.seller_id,
+        actor_id=None,
+        kind="item_sold",
+        title="Item sold",
+        body=f"{offer.listing.title} sold for {money_label(transaction.amount_cents)}.",
+        target_url=url_for("views.receipt_detail", transaction_id=transaction.id),
+        listing_id=offer.listing_id,
+        offer_id=offer.id,
+        conversation_id=conversation.id,
+    )
+
+
+def notify_buyer_deal_confirmed(conversation, offer, transaction):
+    return create_notification(
+        user_id=offer.buyer_id,
+        actor_id=offer.seller_id,
+        kind="offer_accepted",
+        title="Offer accepted",
+        body=(
+            f"{offer.seller.display_name} accepted the offer for "
+            f"{offer.listing.title}. Final price: {money_label(transaction.amount_cents)}."
+        ),
+        target_url=url_for("views.receipt_detail", transaction_id=transaction.id),
+        listing_id=offer.listing_id,
+        offer_id=offer.id,
+        conversation_id=conversation.id,
+    )
+
+
+def receipt_text(transaction):
+    lines = [
+        "Canes Market Receipt",
+        f"Receipt #: {transaction.id}",
+        f"Date: {transaction.created_at.strftime('%B %d, %Y %I:%M %p')}",
+        "",
+        f"Item: {transaction.listing.title}",
+        f"Seller: {transaction.seller.display_name}",
+        f"Buyer: {transaction.buyer.display_name}",
+        f"Original Price: {money_label(transaction.listing.price_cents)}",
+        f"Final Price: {money_label(transaction.amount_cents)}",
+        "Shipping Details: PENDING",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def mark_notifications_read(user_id, conversation_id=None, notification_id=None):
@@ -484,19 +549,24 @@ def finalize_accepted_offer(
         offer_id=offer.id,
         body=body,
         message_type="accepted",
+        notify=False,
     )
-    db.session.add(
-        WalletTransaction(
-            offer_id=offer.id,
-            listing_id=offer.listing_id,
-            buyer_id=buyer.id,
-            seller_id=seller.id,
-            amount_cents=accepted_amount_cents,
-            buyer_balance_after_cents=buyer.wallet_balance_cents,
-            seller_balance_after_cents=seller.wallet_balance_cents,
-        )
+    wallet_transaction = WalletTransaction(
+        offer_id=offer.id,
+        listing_id=offer.listing_id,
+        buyer_id=buyer.id,
+        seller_id=seller.id,
+        amount_cents=accepted_amount_cents,
+        buyer_balance_after_cents=buyer.wallet_balance_cents,
+        seller_balance_after_cents=seller.wallet_balance_cents,
     )
+    db.session.add(wallet_transaction)
+    db.session.flush()
+    notify_item_sold(conversation, offer, wallet_transaction)
+    if sender_id == offer.seller_id:
+        notify_buyer_deal_confirmed(conversation, offer, wallet_transaction)
     decline_competing_offers(offer, now)
+    return wallet_transaction
 
 
 @views.route("/healthz")
@@ -694,6 +764,30 @@ def mark_conversation_read(conversation_id):
             "marked_read": marked_read,
             "conversation": conversation_payload(conversation, include_messages=True),
         }
+    )
+
+
+@views.route("/receipts/<int:transaction_id>")
+@login_required
+def receipt_detail(transaction_id):
+    transaction = get_accessible_wallet_transaction(transaction_id)
+    return render_template(
+        "receipt.html",
+        transaction=transaction,
+        is_buyer=transaction.buyer_id == current_user.id,
+        shipping_status="PENDING",
+    )
+
+
+@views.route("/receipts/<int:transaction_id>/download")
+@login_required
+def download_receipt(transaction_id):
+    transaction = get_accessible_wallet_transaction(transaction_id)
+    filename = f"canes-market-receipt-{transaction.id}.txt"
+    return Response(
+        receipt_text(transaction),
+        mimetype="text/plain",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
@@ -1084,6 +1178,7 @@ def respond_to_offer(offer_id):
     action = request.form.get("action", "").strip().lower()
     response_text = request.form.get("seller_response", "").strip()
     now = utc_now()
+    response_extra = None
     conversation = find_or_create_conversation(
         listing=offer.listing,
         buyer_id=offer.buyer_id,
@@ -1092,7 +1187,7 @@ def respond_to_offer(offer_id):
 
     if action == "accept":
         try:
-            finalize_accepted_offer(
+            wallet_transaction = finalize_accepted_offer(
                 offer=offer,
                 conversation=conversation,
                 accepted_amount_cents=offer.amount_cents,
@@ -1104,8 +1199,12 @@ def respond_to_offer(offer_id):
         except ValueError as exc:
             return action_error(str(exc), redirect_url)
 
-        success_message = "Offer accepted. Buyer wallet debited and seller wallet credited."
+        success_message = "SOLD! Buyer wallet debited and seller wallet credited."
         success_category = "success"
+        response_extra = {
+            "celebration_message": "SOLD!",
+            "receipt_url": url_for("views.receipt_detail", transaction_id=wallet_transaction.id),
+        }
 
     elif action == "decline":
         offer.status = "declined"
@@ -1155,6 +1254,7 @@ def respond_to_offer(offer_id):
         redirect_url,
         conversation=conversation,
         category=success_category,
+        extra=response_extra,
     )
 
 
@@ -1193,6 +1293,7 @@ def buyer_respond_to_offer(offer_id):
     action = request.form.get("action", "").strip().lower()
     response_text = request.form.get("buyer_response", "").strip()
     now = utc_now()
+    response_extra = None
     conversation = find_or_create_conversation(
         listing=offer.listing,
         buyer_id=offer.buyer_id,
@@ -1206,7 +1307,7 @@ def buyer_respond_to_offer(offer_id):
         accepted_amount_cents = offer.counter_amount_cents
         body = response_text or f"Counter accepted at {money_label(accepted_amount_cents)}."
         try:
-            finalize_accepted_offer(
+            wallet_transaction = finalize_accepted_offer(
                 offer=offer,
                 conversation=conversation,
                 accepted_amount_cents=accepted_amount_cents,
@@ -1219,6 +1320,14 @@ def buyer_respond_to_offer(offer_id):
 
         success_message = "Counter accepted. Your wallet was debited and the seller was credited."
         success_category = "success"
+        receipt_url = url_for("views.receipt_detail", transaction_id=wallet_transaction.id)
+        redirect_url = receipt_url
+        response_extra = {
+            "celebration_message": "CONGRATULATIONS WE HAVE A DEAL",
+            "receipt_url": receipt_url,
+            "redirect_url": receipt_url,
+            "redirect_after_ms": 1800,
+        }
 
     elif action == "counter":
         try:
@@ -1278,6 +1387,7 @@ def buyer_respond_to_offer(offer_id):
         redirect_url,
         conversation=conversation,
         category=success_category,
+        extra=response_extra,
     )
 
 

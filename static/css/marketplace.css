@@ -743,6 +743,14 @@ textarea:focus {
     align-items: center;
 }
 
+.ledger-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+}
+
 .offer-card {
     display: grid;
     gap: 10px;
@@ -1337,6 +1345,148 @@ textarea:focus {
     color: var(--muted);
 }
 
+.deal-celebration {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.78);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.16s ease;
+}
+
+.deal-celebration.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.deal-celebration-card {
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    width: min(520px, 100%);
+    padding: 34px 28px;
+    border: 2px solid var(--accent);
+    background: #ffffff;
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.16);
+    animation: deal-pop 0.42s ease both;
+}
+
+.deal-celebration-mark {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    background: var(--accent);
+    color: var(--ink);
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.deal-celebration-card strong {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 3.4rem;
+    line-height: 0.98;
+    letter-spacing: 0;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+@keyframes deal-pop {
+    0% {
+        opacity: 0;
+        transform: scale(0.86) translateY(14px);
+    }
+    70% {
+        opacity: 1;
+        transform: scale(1.03) translateY(0);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* ── Receipt ─────────────────────────────────────────────────── */
+
+.receipt-shell {
+    display: grid;
+    gap: 18px;
+    width: min(860px, 100%);
+    margin: 0 auto;
+}
+
+.receipt-confirmation {
+    display: grid;
+    gap: 6px;
+    padding: 22px 0 4px;
+    animation: deal-pop 0.42s ease both;
+}
+
+.receipt-confirmation h1 {
+    font-size: 3.6rem;
+    line-height: 0.98;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.receipt-panel {
+    display: grid;
+    gap: 18px;
+}
+
+.receipt-summary {
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+.receipt-thumb {
+    width: 160px;
+    height: 160px;
+    object-fit: cover;
+    border: 1px solid var(--line);
+    background: var(--panel-soft);
+}
+
+.receipt-details {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    border-top: 1px solid var(--line);
+}
+
+.receipt-details div {
+    display: grid;
+    grid-template-columns: minmax(140px, 0.45fr) minmax(0, 1fr);
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.receipt-details dt {
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.receipt-details dd {
+    margin: 0;
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+}
+
+.receipt-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 4px;
+}
+
 /* ── Responsive ──────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
@@ -1358,6 +1508,10 @@ textarea:focus {
 
     .seller-card {
         grid-template-columns: 1fr;
+    }
+
+    .ledger-actions {
+        justify-content: flex-start;
     }
 
     .price-cluster {
@@ -1444,6 +1598,29 @@ textarea:focus {
         width: min(100%, calc(100vw - 64px));
         margin-top: 8px;
     }
+
+    .deal-celebration-card strong {
+        font-size: 2.1rem;
+    }
+
+    .receipt-confirmation h1 {
+        font-size: 2.3rem;
+    }
+
+    .receipt-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .receipt-thumb {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 10;
+    }
+
+    .receipt-details div {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1454,5 +1631,13 @@ textarea:focus {
     .header-search button {
         padding: 0 10px;
         font-size: 0.82rem;
+    }
+
+    .deal-celebration-card strong {
+        font-size: 1.8rem;
+    }
+
+    .receipt-confirmation h1 {
+        font-size: 2rem;
     }
 }
