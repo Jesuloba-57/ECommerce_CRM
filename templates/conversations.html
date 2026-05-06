@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Canes Market | Messages{% endblock %}
+
+{% block content %}
+<section class="panel" id="inbox-panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Messaging</p>
+            <h2>Your conversations</h2>
+        </div>
+    </div>
+    <div class="inbox-list" id="inbox-list">
+        <p class="muted">Loading&hellip;</p>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+    function formatTime(iso) {
+        if (!iso) return "";
+        const d = new Date(iso);
+        const now = new Date();
+        const diffDays = Math.floor((now - d) / 86400000);
+        if (diffDays === 0) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        if (diffDays === 1) return "Yesterday";
+        if (diffDays < 7) return d.toLocaleDateString([], { weekday: "short" });
+        return d.toLocaleDateString([], { month: "short", day: "numeric" });
+    }
+
+    function messageTypeLabel(type) {
+        const map = { offer: "Offer sent", counter: "Counter offer", accepted: "Deal accepted", declined: "Offer declined" };
+        return map[type] || null;
+    }
+
+    function renderInbox(conversations) {
+        const el = document.getElementById("inbox-list");
+        if (!conversations.length) {
+            el.innerHTML = '<p class="muted">No conversations yet. Make an offer on a listing to start chatting with a seller.</p>';
+            return;
+        }
+        el.innerHTML = conversations.map(c => {
+            const unread = c.unread_count > 0
+                ? `<span class="unread-badge">${c.unread_count}</span>`
+                : "";
+            const dealPill = `<span class="status-pill status-${c.deal_status}">${c.deal_status}</span>`;
+            let preview = "";
+            if (c.latest_message) {
+                const typeLabel = messageTypeLabel(c.latest_message.message_type);
+                preview = `<p class="convo-preview">${typeLabel ? "[" + typeLabel + "] " : ""}${c.latest_message.body || ""}</p>`;
+            }
+            return `
+            <a href="/conversations/${c.id}" class="convo-row">
+                <img src="${c.listing.image_url}" class="convo-thumb" alt="${c.listing.title}">
+                <div class="convo-info">
+                    <strong>${c.listing.title}</strong>
+                    <span class="convo-meta">${c.buyer.display_name} &rarr; ${c.seller.display_name}</span>
+                    ${preview}
+                </div>
+                <div class="convo-side">
+                    ${unread}
+                    ${dealPill}
+                    <small>${formatTime(c.last_message_at)}</small>
+                </div>
+            </a>`;
+        }).join("");
+    }
+
+    async function loadInbox() {
+        try {
+            const res = await fetch("/conversations", {
+                headers: { "Accept": "application/json" }
+            });
+            if (!res.ok) throw new Error("Failed to load");
+            const data = await res.json();
+            renderInbox(data.conversations);
+        } catch {
+            document.getElementById("inbox-list").innerHTML =
+                '<p class="muted">Could not load conversations. Please refresh the page.</p>';
+        }
+    }
+
+    loadInbox();
+</script>
+{% endblock %}

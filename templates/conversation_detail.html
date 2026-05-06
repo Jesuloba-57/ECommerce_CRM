@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Canes Market | Conversation{% endblock %}
+
+{% block content %}
+<div class="chat-layout">
+
+    <article class="panel" id="chat-header-panel">
+        <div class="chat-header-inner">
+            <img id="chat-listing-img" src="" alt="" class="chat-listing-thumb">
+            <div class="chat-listing-info">
+                <p class="eyebrow" id="chat-deal-status"></p>
+                <h2 id="chat-listing-title">Loading&hellip;</h2>
+                <div id="chat-listing-meta" class="tag-row"></div>
+            </div>
+            <a href="/conversations" class="button button-ghost button-small">&larr; Inbox</a>
+        </div>
+    </article>
+
+    <article class="panel" style="padding: 0; overflow: hidden;">
+        <div class="chat-thread" id="chat-thread"></div>
+        <div id="chat-footer"></div>
+    </article>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const CONVO_ID = {{ conversation_id | tojson }};
+    const CURRENT_USER_ID = {{ current_user.id | tojson }};
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    let conversationStatus = "active";
+    let lastMessageCount = 0;
+    let pollingTimer = null;
+
+    /* ── helpers ───────────────────────────────────────────────── */
+
+    function esc(str) {
+        const d = document.createElement("div");
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    function formatTime(iso) {
+        if (!iso) return "";
+        return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    /* ── message bubble renderer ───────────────────────────────── */
+
+    function renderBubble(msg) {
+        const isMine = msg.sender_id === CURRENT_USER_ID;
+        const sideClass = isMine ? "msg-mine" : "msg-theirs";
+        const typeClass = `msg-${msg.message_type}`;
+        let inner = "";
+
+        if (msg.message_type === "offer" && msg.offer) {
+            inner = `
+            <div class="msg-card">
+                <span class="msg-card-label">Offer</span>
+                <span class="msg-card-amount">${esc(msg.offer.amount)}</span>
+                <span class="status-pill status-${esc(msg.offer.status)}">${esc(msg.offer.status)}</span>
+                ${msg.body ? `<p class="msg-card-body">${esc(msg.body)}</p>` : ""}
+            </div>`;
+        } else if (msg.message_type === "counter" && msg.offer) {
+            const amt = msg.offer.counter_amount || msg.offer.amount;
+            inner = `
+            <div class="msg-card">
+                <span class="msg-card-label">Counter offer</span>
+                <span class="msg-card-amount">${esc(amt)}</span>
+                ${msg.body ? `<p class="msg-card-body">${esc(msg.body)}</p>` : ""}
+            </div>`;
+        } else if (msg.message_type === "accepted") {
+            inner = `
+            <div class="msg-card">
+                <span class="msg-card-label">Deal accepted</span>
+                <strong class="msg-card-amount" style="color: var(--success);">&#10003; Accepted</strong>
+                ${msg.body ? `<p class="msg-card-body">${esc(msg.body)}</p>` : ""}
+            </div>`;
+        } else if (msg.message_type === "declined") {
+            inner = `
+            <div class="msg-card">
+                <span class="msg-card-label">Offer declined</span>
+                <strong class="msg-card-amount" style="color: var(--muted);">Declined</strong>
+                ${msg.body ? `<p class="msg-card-body">${esc(msg.body)}</p>` : ""}
+            </div>`;
+        } else {
+            inner = `<p>${esc(msg.body)}</p>`;
+        }
+
+        return `
+        <div class="msg-bubble ${sideClass} ${typeClass}">
+            ${inner}
+            <span class="msg-meta">${esc(msg.sender.display_name)} &middot; ${formatTime(msg.created_at)}</span>
+        </div>`;
+    }
+
+    /* ── render full conversation ──────────────────────────────── */
+
+    function renderConversation(conversation) {
+        conversationStatus = conversation.status;
+
+        const listing = conversation.listing;
+        const img = document.getElementById("chat-listing-img");
+        img.src = listing.image_url;
+        img.alt = listing.title;
+
+        document.getElementById("chat-deal-status").textContent = conversation.deal_status;
+        document.getElementById("chat-listing-title").textContent = listing.title;
+
+        const meta = document.getElementById("chat-listing-meta");
+        meta.innerHTML = `
+            <span class="pill">${esc(listing.price)}</span>
+            <span class="status-pill status-${esc(listing.status)}">${esc(listing.status)}</span>`;
+
+        const thread = document.getElementById("chat-thread");
+        const messages = conversation.messages || [];
+        const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 80;
+        const hasNew = messages.length !== lastMessageCount;
+
+        if (hasNew) {
+            thread.innerHTML = messages.length
+                ? messages.map(m => renderBubble(m)).join("")
+                : '<p class="muted" style="text-align:center; padding: 24px 0;">No messages yet.</p>';
+            lastMessageCount = messages.length;
+        }
+
+        if (hasNew || atBottom) {
+            thread.scrollTop = thread.scrollHeight;
+        }
+
+        renderFooter(conversation);
+    }
+
+    function renderFooter(conversation) {
+        const footer = document.getElementById("chat-footer");
+        if (conversation.status !== "active") {
+            footer.innerHTML = `
+            <div class="chat-closed-notice">
+                <span class="status-pill status-${esc(conversation.deal_status)}">${esc(conversation.deal_status)}</span>
+                <p>This conversation is closed and no longer accepting messages.</p>
+            </div>`;
+            return;
+        }
+
+        if (footer.querySelector("form")) return; // already rendered
+
+        footer.innerHTML = `
+        <form class="chat-send-form" id="chat-send-form">
+            <label style="margin:0;">
+                <span class="sr-only">Message</span>
+                <textarea id="chat-input" rows="2" placeholder="Type a message&hellip;" required maxlength="2000"></textarea>
+            </label>
+            <button class="button" type="submit">Send</button>
+        </form>`;
+
+        document.getElementById("chat-send-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const input = document.getElementById("chat-input");
+            const body = input.value.trim();
+            if (!body) return;
+
+            const btn = e.target.querySelector("button");
+            btn.disabled = true;
+            input.disabled = true;
+
+            try {
+                const res = await fetch(`/conversations/${CONVO_ID}/messages`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": csrfToken
+                    },
+                    body: JSON.stringify({ body })
+                });
+                if (res.ok) {
+                    input.value = "";
+                    await loadConversation();
+                } else {
+                    alert("Failed to send message. Please try again.");
+                }
+            } catch {
+                alert("Network error. Please try again.");
+            } finally {
+                btn.disabled = false;
+                input.disabled = false;
+                input.focus();
+            }
+        });
+    }
+
+    /* ── mark read ─────────────────────────────────────────────── */
+
+    async function markRead() {
+        await fetch(`/conversations/${CONVO_ID}/read`, {
+            method: "POST",
+            headers: { "X-CSRFToken": csrfToken }
+        });
+    }
+
+    /* ── load / poll ───────────────────────────────────────────── */
+
+    async function loadConversation() {
+        const res = await fetch(`/conversations/${CONVO_ID}`, {
+            headers: { "Accept": "application/json" }
+        });
+        if (!res.ok) {
+            document.getElementById("chat-thread").innerHTML =
+                '<p class="muted" style="text-align:center;padding:24px;">Could not load conversation.</p>';
+            return;
+        }
+        const data = await res.json();
+        renderConversation(data.conversation);
+    }
+
+    async function init() {
+        await loadConversation();
+        await markRead();
+        pollingTimer = setInterval(loadConversation, 5000);
+    }
+
+    init();
+</script>
+{% endblock %}
