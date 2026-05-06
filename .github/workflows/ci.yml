@@ -29,3 +29,14 @@ jobs:
 
       - name: Run tests
         run: python -m unittest discover
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Trigger Render Deploy Hook
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
