@@ -73,6 +73,13 @@ class User(db.Model, UserMixin):
         foreign_keys="WalletTransaction.seller_id",
         lazy=True,
     )
+    notifications = db.relationship(
+        "Notification",
+        back_populates="user",
+        foreign_keys="Notification.user_id",
+        cascade="all, delete-orphan",
+        lazy=True,
+    )
 
     @property
     def display_name(self):
@@ -270,3 +277,26 @@ class WalletTransaction(db.Model):
         back_populates="wallet_sales",
         foreign_keys=[seller_id],
     )
+
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(15), db.ForeignKey("user.id"), nullable=False, index=True)
+    actor_id = db.Column(db.String(15), db.ForeignKey("user.id"), index=True)
+    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), index=True)
+    offer_id = db.Column(db.Integer, db.ForeignKey("offer.id"), index=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey("conversation.id"), index=True)
+    message_id = db.Column(db.Integer, db.ForeignKey("message.id"), index=True)
+    kind = db.Column(db.String(40), nullable=False, index=True)
+    title = db.Column(db.String(140), nullable=False)
+    body = db.Column(db.Text)
+    target_url = db.Column(db.String(255), nullable=False)
+    read_at = db.Column(db.DateTime, index=True)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False, index=True)
+
+    user = db.relationship("User", back_populates="notifications", foreign_keys=[user_id])
+    actor = db.relationship("User", foreign_keys=[actor_id])
+    listing = db.relationship("Listing")
+    offer = db.relationship("Offer")
+    conversation = db.relationship("Conversation")
+    message = db.relationship("Message")

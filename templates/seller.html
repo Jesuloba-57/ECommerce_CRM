@@ -154,83 +154,58 @@
     </div>
 
     {% if listings %}
-        <div class="listing-stack">
+        <div class="inventory-list">
             {% for listing in listings %}
-                <article class="listing-card">
-                    <img src="{{ listing.image_url }}" alt="{{ listing.title }}" class="listing-card-image">
-                    <div class="listing-card-body">
-                        <div class="listing-card-top">
-                            <div>
-                                <div class="tag-row">
-                                    <span class="pill">{{ listing.category }}</span>
-                                    <span class="pill pill-muted">{{ listing.condition }}</span>
-                                    <span class="status-pill status-{{ listing.status }}">{{ listing.status }}</span>
-                                </div>
-                                <h3><a href="{{ url_for('views.listing_detail', listing_id=listing.id) }}">{{ listing.title }}</a></h3>
-                                <p>{{ listing.description }}</p>
-                            </div>
-                            <div class="price-cluster">
-                                <strong>{{ listing.price_cents | money }}</strong>
-                                <small>{{ listing.location }}</small>
-                            </div>
-                        </div>
-
-                        <div class="dashboard-forms">
-                            <form method="POST" action="{{ url_for('views.update_listing_price', listing_id=listing.id) }}" class="form-card compact-form">
-                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                <h4>Update price</h4>
-                                <label>
-                                    <span>New price</span>
-                                    <input type="text" name="price" placeholder="Example: 225.00" required>
-                                </label>
-                                <label>
-                                    <span>Reason</span>
-                                    <input type="text" name="note" placeholder="Price reduced after low demand">
-                                </label>
-                                <button class="button button-small" type="submit">Save price</button>
-                            </form>
-
-                            <form method="POST" action="{{ url_for('views.update_listing_status', listing_id=listing.id) }}" class="form-card compact-form">
-                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                <h4>Listing status</h4>
-                                <label>
-                                    <span>Status</span>
-                                    <select name="status">
-                                        {% for status in statuses %}
-                                            <option value="{{ status }}" {% if listing.status == status %}selected{% endif %}>{{ status|title }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </label>
-                                <button class="button button-small button-secondary" type="submit">Update status</button>
-                            </form>
-                        </div>
-
-                        <div class="history-strip">
-                            <div>
-                                <h4>Recent price history</h4>
-                                {% if listing.price_history %}
-                                    <ul class="timeline">
-                                        {% for change in listing.price_history[:3] %}
-                                            <li>
-                                                <strong>{{ change.new_price_cents | money }}</strong>
-                                                {% if change.old_price_cents %}
-                                                    <span>from {{ change.old_price_cents | money }}</span>
-                                                {% endif %}
-                                                <small>{{ change.note or "Price updated" }} • {{ change.changed_at | datetime }}</small>
-                                            </li>
-                                        {% endfor %}
-                                    </ul>
-                                {% else %}
-                                    <p class="muted">No price changes yet.</p>
-                                {% endif %}
-                            </div>
-
-                            <div>
-                                <h4>Offer status</h4>
-                                <p class="muted">{{ listing.offers|length }} offer{{ "" if listing.offers|length == 1 else "s" }} recorded for this listing.</p>
-                            </div>
-                        </div>
+                <article class="inventory-row{% if listing.status == 'sold' %} is-sold{% endif %}">
+                    <a class="inventory-thumb-link" href="{{ url_for('views.listing_detail', listing_id=listing.id) }}">
+                        <img src="{{ listing.image_url }}" alt="{{ listing.title }}" class="inventory-thumb">
+                    </a>
+                    <div class="inventory-main">
+                        <h3><a href="{{ url_for('views.listing_detail', listing_id=listing.id) }}">{{ listing.title }}</a></h3>
+                        <p>{{ listing.category }} · {{ listing.condition }} · {{ listing.location }}</p>
                     </div>
+                    <strong class="inventory-price">{{ listing.price_cents | money }}</strong>
+                    <span class="inventory-offers">{{ listing.offers|length }} offer{{ "" if listing.offers|length == 1 else "s" }}</span>
+                    <span class="status-pill status-{{ listing.status }}">{{ listing.status }}</span>
+
+                    {% if listing.status == "active" %}
+                        <details class="inventory-menu">
+                            <summary aria-label="Listing options for {{ listing.title }}">
+                                <span aria-hidden="true">⋮</span>
+                            </summary>
+                            <div class="inventory-menu-panel">
+                                <form method="POST" action="{{ url_for('views.update_listing_price', listing_id=listing.id) }}" class="form-card compact-form">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <h4>Update price</h4>
+                                    <label>
+                                        <span>New price</span>
+                                        <input type="text" name="price" placeholder="Example: 225.00" required>
+                                    </label>
+                                    <label>
+                                        <span>Reason</span>
+                                        <input type="text" name="note" placeholder="Price reduced after low demand">
+                                    </label>
+                                    <button class="button button-small" type="submit">Save price</button>
+                                </form>
+
+                                <form method="POST" action="{{ url_for('views.update_listing_status', listing_id=listing.id) }}" class="form-card compact-form">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <h4>Listing status</h4>
+                                    <label>
+                                        <span>Status</span>
+                                        <select name="status">
+                                            {% for status in statuses %}
+                                                <option value="{{ status }}" {% if listing.status == status %}selected{% endif %}>{{ status|title }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </label>
+                                    <button class="button button-small button-secondary" type="submit">Update status</button>
+                                </form>
+                            </div>
+                        </details>
+                    {% else %}
+                        <span class="inventory-menu-placeholder" aria-hidden="true"></span>
+                    {% endif %}
                 </article>
             {% endfor %}
         </div>
@@ -279,5 +254,13 @@
 
         imageInput.addEventListener("change", showFileName);
     }
+
+    document.addEventListener("click", (event) => {
+        document.querySelectorAll(".inventory-menu[open]").forEach((menu) => {
+            if (!menu.contains(event.target)) {
+                menu.removeAttribute("open");
+            }
+        });
+    });
 </script>
 {% endblock %}

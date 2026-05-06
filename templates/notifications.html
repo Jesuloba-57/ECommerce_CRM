@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Canes Market | Notifications{% endblock %}
+
+{% block content %}
+<section class="dashboard-header">
+    <div>
+        <p class="eyebrow">Notifications</p>
+        <h1>Offer and message updates.</h1>
+        <p class="muted">Sellers see new offer alerts here. Buyers see seller replies, counters, and offer decisions.</p>
+    </div>
+    <div class="stat-grid compact-stats">
+        <article class="stat-card">
+            <span class="stat-label">Unread</span>
+            <strong>{{ unread_count }}</strong>
+        </article>
+        <article class="stat-card">
+            <span class="stat-label">Recent</span>
+            <strong>{{ notifications|length }}</strong>
+        </article>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Inbox</p>
+            <h2>Recent notifications</h2>
+        </div>
+        {% if unread_count %}
+            <form method="POST" action="{{ url_for('views.mark_all_notifications_read') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-small button-secondary" type="submit">Mark all read</button>
+            </form>
+        {% endif %}
+    </div>
+
+    {% if notifications %}
+        <div class="notification-list">
+            {% for notification in notifications %}
+                <article class="notification-card{% if notification.read_at is none %} is-unread{% endif %}">
+                    <div class="notification-dot" aria-hidden="true"></div>
+                    <div class="notification-copy">
+                        <div class="notification-title-row">
+                            <h3>{{ notification.title }}</h3>
+                            <span class="status-pill status-{{ 'pending' if notification.read_at is none else 'archived' }}">
+                                {{ "unread" if notification.read_at is none else "read" }}
+                            </span>
+                        </div>
+                        {% if notification.body %}
+                            <p>{{ notification.body }}</p>
+                        {% endif %}
+                        <small>{{ notification.created_at | datetime }}</small>
+                    </div>
+                    <div class="notification-actions">
+                        <form method="POST" action="{{ url_for('views.open_notification', notification_id=notification.id) }}">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <button class="button button-small" type="submit">Open</button>
+                        </form>
+                        {% if notification.read_at is none %}
+                            <form method="POST" action="{{ url_for('views.mark_notification_read', notification_id=notification.id) }}">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                <button class="button button-small button-ghost" type="submit">Mark read</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="muted">No notifications yet. Offer and message updates will appear here.</p>
+    {% endif %}
+</section>
+{% endblock %}

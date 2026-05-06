@@ -36,10 +36,28 @@
 
     /* ── helpers ───────────────────────────────────────────────── */
 
-    function esc(str) {
+    function esc(value) {
         const d = document.createElement("div");
-        d.textContent = str;
+        d.textContent = value == null ? "" : String(value);
         return d.innerHTML;
+    }
+
+    function escapeRegExp(value) {
+        return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function statusClass(value) {
+        return String(value || "").toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+    }
+
+    function stripGeneratedPrefix(body, labels) {
+        const trimmed = (body || "").trim();
+        for (const label of labels) {
+            const pattern = new RegExp(`^${escapeRegExp(label)}:\\s*\\$[\\d,]+(?:\\.\\d{2})?(?:\\s*\\n\\s*)?`, "i");
+            const stripped = trimmed.replace(pattern, "").trim();
+            if (stripped !== trimmed) return stripped;
+        }
+        return trimmed;
     }
 
     function formatTime(iso) {
@@ -47,29 +65,116 @@
         return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
 
+    function latestActionableMessageIds(messages) {
+        const ids = {
+            seller: new Map(),
+            buyer: new Map()
+        };
+
+        for (const msg of messages) {
+            if (!msg.offer) continue;
+            if (msg.message_type === "offer" && msg.sender_id !== CURRENT_USER_ID) {
+                ids.seller.set(msg.offer.id, msg.id);
+            }
+            if (msg.message_type === "counter" && msg.sender_id !== CURRENT_USER_ID) {
+                ids.buyer.set(msg.offer.id, msg.id);
+            }
+        }
+
+        return ids;
+    }
+
+    function sellerCanActOnOffer(msg, conversation, actionIds) {
+        return conversation.status === "active"
+            && conversation.listing.status === "active"
+            && CURRENT_USER_ID === conversation.seller.id
+            && msg.offer
+            && msg.offer.status === "pending"
+            && actionIds.seller.get(msg.offer.id) === msg.id;
+    }
+
+    function buyerCanActOnCounter(msg, conversation, actionIds) {
+        return conversation.status === "active"
+            && conversation.listing.status === "active"
+            && CURRENT_USER_ID === conversation.buyer.id
+            && msg.offer
+            && msg.offer.status === "countered"
+            && actionIds.buyer.get(msg.offer.id) === msg.id;
+    }
+
+    function renderSellerOfferActions(offerId) {
+        return `
+            <form class="offer-action-form" data-action-url="/offers/${encodeURIComponent(offerId)}/respond">
+                <label>
+                    <span>Response note</span>
+                    <textarea name="seller_response" rows="2" placeholder="Optional reply for the buyer"></textarea>
+                </label>
+                <label>
+                    <span>Counter amount</span>
+                    <input type="text" name="counter_amount" placeholder="Only needed for counter offers">
+                </label>
+                <div class="button-row">
+                    <button class="button button-small" type="submit" name="action" value="accept">Accept</button>
+                    <button class="button button-small button-secondary" type="submit" name="action" value="counter">Counter</button>
+                    <button class="button button-small button-ghost" type="submit" name="action" value="decline">Decline</button>
+                </div>
+                <p class="offer-action-error" aria-live="polite"></p>
+            </form>`;
+    }
+
+    function renderBuyerCounterActions(offerId) {
+        return `
+            <form class="offer-action-form" data-action-url="/offers/${encodeURIComponent(offerId)}/buyer-respond">
+                <label>
+                    <span>Reply to seller</span>
+                    <textarea name="buyer_response" rows="2" placeholder="Optional note for the seller"></textarea>
+                </label>
+                <label>
+                    <span>Revised offer</span>
+                    <input type="text" name="amount" placeholder="Only needed if you counter again">
+                </label>
+                <div class="button-row">
+                    <button class="button button-small" type="submit" name="action" value="accept">Accept counter</button>
+                    <button class="button button-small button-secondary" type="submit" name="action" value="counter">Send revised offer</button>
+                    <button class="button button-small button-ghost" type="submit" name="action" value="decline">Decline</button>
+                </div>
+                <p class="offer-action-error" aria-live="polite"></p>
+            </form>`;
+    }
+
     /* ── message bubble renderer ───────────────────────────────── */
 
-    function renderBubble(msg) {
+    function renderBubble(msg, conversation, actionIds) {
         const isMine = msg.sender_id === CURRENT_USER_ID;
         const sideClass = isMine ? "msg-mine" : "msg-theirs";
         const typeClass = `msg-${msg.message_type}`;
+        const sellerActions = sellerCanActOnOffer(msg, conversation, actionIds)
+            ? renderSellerOfferActions(msg.offer.id)
+            : "";
+        const buyerActions = buyerCanActOnCounter(msg, conversation, actionIds)
+            ? renderBuyerCounterActions(msg.offer.id)
+            : "";
         let inner = "";
 
         if (msg.message_type === "offer" && msg.offer) {
+            const body = stripGeneratedPrefix(msg.body, ["Offer sent", "Revised offer"]);
             inner = `
             <div class="msg-card">
                 <span class="msg-card-label">Offer</span>
                 <span class="msg-card-amount">${esc(msg.offer.amount)}</span>
-                <span class="status-pill status-${esc(msg.offer.status)}">${esc(msg.offer.status)}</span>
-                ${msg.body ? `<p class="msg-card-body">${esc(msg.body)}</p>` : ""}
+                <span class="status-pill status-${statusClass(msg.offer.status)}">${esc(msg.offer.status)}</span>
+                ${body ? `<p class="msg-card-body">${esc(body)}</p>` : ""}
+                ${sellerActions}
             </div>`;
         } else if (msg.message_type === "counter" && msg.offer) {
             const amt = msg.offer.counter_amount || msg.offer.amount;
+            const body = stripGeneratedPrefix(msg.body, ["Counter offer"]);
             inner = `
             <div class="msg-card">
                 <span class="msg-card-label">Counter offer</span>
                 <span class="msg-card-amount">${esc(amt)}</span>
-                ${msg.body ? `<p class="msg-card-body">${esc(msg.body)}</p>` : ""}
+                ${body ? `<p class="msg-card-body">${esc(body)}</p>` : ""}
+                ${buyerActions}
             </div>`;
         } else if (msg.message_type === "accepted") {
             inner = `
@@ -92,7 +197,7 @@
         return `
         <div class="msg-bubble ${sideClass} ${typeClass}">
             ${inner}
-            <span class="msg-meta">${esc(msg.sender.display_name)} &middot; ${formatTime(msg.created_at)}</span>
+            <span class="msg-meta">${esc(msg.sender ? msg.sender.display_name : "Marketplace")} &middot; ${esc(formatTime(msg.created_at))}</span>
         </div>`;
     }
 
@@ -112,16 +217,17 @@
         const meta = document.getElementById("chat-listing-meta");
         meta.innerHTML = `
             <span class="pill">${esc(listing.price)}</span>
-            <span class="status-pill status-${esc(listing.status)}">${esc(listing.status)}</span>`;
+            <span class="status-pill status-${statusClass(listing.status)}">${esc(listing.status)}</span>`;
 
         const thread = document.getElementById("chat-thread");
         const messages = conversation.messages || [];
+        const actionIds = latestActionableMessageIds(messages);
         const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 80;
         const hasNew = messages.length !== lastMessageCount;
 
         if (hasNew) {
             thread.innerHTML = messages.length
-                ? messages.map(m => renderBubble(m)).join("")
+                ? messages.map(m => renderBubble(m, conversation, actionIds)).join("")
                 : '<p class="muted" style="text-align:center; padding: 24px 0;">No messages yet.</p>';
             lastMessageCount = messages.length;
         }
@@ -138,7 +244,7 @@
         if (conversation.status !== "active") {
             footer.innerHTML = `
             <div class="chat-closed-notice">
-                <span class="status-pill status-${esc(conversation.deal_status)}">${esc(conversation.deal_status)}</span>
+                <span class="status-pill status-${statusClass(conversation.deal_status)}">${esc(conversation.deal_status)}</span>
                 <p>This conversation is closed and no longer accepting messages.</p>
             </div>`;
             return;
@@ -190,6 +296,48 @@
         });
     }
 
+    async function handleOfferActionSubmit(e) {
+        const form = e.target.closest(".offer-action-form");
+        if (!form) return;
+        e.preventDefault();
+
+        const submitter = e.submitter;
+        const formData = new FormData(form);
+        if (submitter && submitter.name) {
+            formData.set(submitter.name, submitter.value);
+        }
+
+        const errorEl = form.querySelector(".offer-action-error");
+        const controls = form.querySelectorAll("button, input, textarea");
+        if (errorEl) errorEl.textContent = "";
+        controls.forEach(control => control.disabled = true);
+
+        try {
+            const res = await fetch(form.dataset.actionUrl, {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
+                body: formData
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || "Could not update this offer.");
+            }
+            lastMessageCount = -1;
+            await loadConversation();
+        } catch (err) {
+            if (errorEl) {
+                errorEl.textContent = err.message || "Could not update this offer.";
+            } else {
+                alert(err.message || "Could not update this offer.");
+            }
+        } finally {
+            controls.forEach(control => control.disabled = false);
+        }
+    }
+
     /* ── mark read ─────────────────────────────────────────────── */
 
     async function markRead() {
@@ -212,11 +360,14 @@
         }
         const data = await res.json();
         renderConversation(data.conversation);
+        if (data.conversation.unread_count > 0) {
+            await markRead();
+        }
     }
 
     async function init() {
+        document.getElementById("chat-thread").addEventListener("submit", handleOfferActionSubmit);
         await loadConversation();
-        await markRead();
         pollingTimer = setInterval(loadConversation, 5000);
     }
 

@@ -18,7 +18,15 @@
 
 {% block scripts %}
 <script>
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    function esc(value) {
+        const d = document.createElement("div");
+        d.textContent = value == null ? "" : String(value);
+        return d.innerHTML;
+    }
+
+    function statusClass(value) {
+        return String(value || "").toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+    }
 
     function formatTime(iso) {
         if (!iso) return "";
@@ -43,27 +51,32 @@
             return;
         }
         el.innerHTML = conversations.map(c => {
-            const unread = c.unread_count > 0
-                ? `<span class="unread-badge">${c.unread_count}</span>`
+            const unreadCount = Number(c.unread_count) || 0;
+            const unread = unreadCount > 0
+                ? `<span class="unread-badge">${unreadCount}</span>`
                 : "";
-            const dealPill = `<span class="status-pill status-${c.deal_status}">${c.deal_status}</span>`;
+            const dealStatus = c.deal_status || "";
+            const dealPill = `<span class="status-pill status-${statusClass(dealStatus)}">${esc(dealStatus)}</span>`;
             let preview = "";
             if (c.latest_message) {
                 const typeLabel = messageTypeLabel(c.latest_message.message_type);
-                preview = `<p class="convo-preview">${typeLabel ? "[" + typeLabel + "] " : ""}${c.latest_message.body || ""}</p>`;
+                preview = `<p class="convo-preview">${typeLabel ? "[" + esc(typeLabel) + "] " : ""}${esc(c.latest_message.body || "")}</p>`;
             }
+            const listing = c.listing || {};
+            const buyer = c.buyer || {};
+            const seller = c.seller || {};
             return `
-            <a href="/conversations/${c.id}" class="convo-row">
-                <img src="${c.listing.image_url}" class="convo-thumb" alt="${c.listing.title}">
+            <a href="/conversations/${encodeURIComponent(c.id)}" class="convo-row">
+                <img src="${esc(listing.image_url)}" class="convo-thumb" alt="${esc(listing.title)}">
                 <div class="convo-info">
-                    <strong>${c.listing.title}</strong>
-                    <span class="convo-meta">${c.buyer.display_name} &rarr; ${c.seller.display_name}</span>
+                    <strong>${esc(listing.title)}</strong>
+                    <span class="convo-meta">${esc(buyer.display_name)} &rarr; ${esc(seller.display_name)}</span>
                     ${preview}
                 </div>
                 <div class="convo-side">
                     ${unread}
                     ${dealPill}
-                    <small>${formatTime(c.last_message_at)}</small>
+                    <small>${esc(formatTime(c.last_message_at))}</small>
                 </div>
             </a>`;
         }).join("");

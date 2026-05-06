@@ -7,7 +7,16 @@ from io import BytesIO
 from werkzeug.security import generate_password_hash
 
 from __init__ import create_app, db
-from db_model import Conversation, Listing, Message, Offer, PriceHistory, User, WalletTransaction
+from db_model import (
+    Conversation,
+    Listing,
+    Message,
+    Notification,
+    Offer,
+    PriceHistory,
+    User,
+    WalletTransaction,
+)
 
 
 CSRF_RE = re.compile(
@@ -204,6 +213,23 @@ class MarketplaceSmokeTests(unittest.TestCase):
             ).one()
             self.assertEqual(price_change.note, "Spring semester discount")
 
+    def test_seller_inventory_uses_compact_rows_and_hides_sold_options(self):
+        with self.app.app_context():
+            sold_listing = db.session.get(Listing, 1)
+            sold_listing.status = "sold"
+            db.session.commit()
+
+        response = self._login("demo-seller@canesmarket.local", "marketplace123")
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get("/seller")
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        self.assertIn("inventory-list", page)
+        self.assertIn("inventory-row is-sold", page)
+        self.assertNotIn("Listing options for Used MacBook Air M1", page)
+        self.assertIn("Listing options for Adidas Running Shoes", page)
+
     def test_buyer_offer_can_be_accepted_by_seller(self):
         self._create_buyer()
 
@@ -333,6 +359,82 @@ class MarketplaceSmokeTests(unittest.TestCase):
             self.assertIn("counter", message_types)
             self.assertIn("accepted", message_types)
 
+    def test_offer_actions_can_run_from_chat_json_flow(self):
+        self._create_buyer()
+
+        response = self._login("buyer@example.com", "password123")
+        self.assertEqual(response.status_code, 200)
+
+        token = self._csrf_token("/listings/1")
+        response = self.client.post(
+            "/listings/1/offers",
+            data={
+                "_csrf_token": token,
+                "amount": "64.00",
+                "message": "Can we negotiate in chat?",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with self.app.app_context():
+            offer_id = Offer.query.one().id
+            conversation_id = Conversation.query.one().id
+
+        self.client.get("/logout", follow_redirects=True)
+        response = self._login("demo-seller@canesmarket.local", "marketplace123")
+        self.assertEqual(response.status_code, 200)
+
+        token = self._csrf_token("/seller")
+        response = self.client.post(
+            f"/offers/{offer_id}/respond",
+            headers={
+                "Accept": "application/json",
+                "X-CSRFToken": token,
+            },
+            data={
+                "action": "counter",
+                "counter_amount": "70.00",
+                "seller_response": "I can do $70 in chat.",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        seller_payload = response.get_json()
+        self.assertEqual(seller_payload["conversation"]["deal_status"], "negotiating")
+        self.assertIn(
+            "counter",
+            [message["message_type"] for message in seller_payload["conversation"]["messages"]],
+        )
+
+        self.client.get("/logout", follow_redirects=True)
+        response = self._login("buyer@example.com", "password123")
+        self.assertEqual(response.status_code, 200)
+
+        token = self._csrf_token("/activity")
+        response = self.client.post(
+            f"/offers/{offer_id}/buyer-respond",
+            headers={
+                "Accept": "application/json",
+                "X-CSRFToken": token,
+            },
+            data={
+                "action": "accept",
+                "buyer_response": "Accepted from chat.",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        buyer_payload = response.get_json()
+        self.assertEqual(buyer_payload["conversation"]["deal_status"], "accepted")
+        self.assertIn(
+            "accepted",
+            [message["message_type"] for message in buyer_payload["conversation"]["messages"]],
+        )
+
+        with self.app.app_context():
+            offer = db.session.get(Offer, offer_id)
+            self.assertEqual(offer.status, "accepted")
+            self.assertEqual(WalletTransaction.query.one().amount_cents, 7000)
+
     def test_buyer_can_send_revised_offer_after_seller_counter(self):
         self._create_buyer()
 
@@ -423,6 +525,89 @@ class MarketplaceSmokeTests(unittest.TestCase):
             self.assertEqual(wallet_transaction.amount_cents, 6600)
             self.assertTrue(any("Revised offer: $66.00" in body for body in offer_messages))
 
+    def test_notifications_track_offer_and_seller_correspondence(self):
+        self._create_buyer()
+
+        response = self._login("buyer@example.com", "password123")
+        self.assertEqual(response.status_code, 200)
+
+        token = self._csrf_token("/listings/1")
+        response = self.client.post(
+            "/listings/1/offers",
+            data={
+                "_csrf_token": token,
+                "amount": "64.00",
+                "message": "Can meet after class.",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with self.app.app_context():
+            offer_id = Offer.query.one().id
+            conversation_id = Conversation.query.one().id
+            seller = User.query.filter_by(email="demo-seller@canesmarket.local").one()
+            seller_notification = Notification.query.filter_by(
+                user_id=seller.id,
+                kind="new_offer",
+            ).one()
+            seller_notification_id = seller_notification.id
+            self.assertIsNone(seller_notification.read_at)
+            self.assertIn("$64.00", seller_notification.body)
+
+        self.client.get("/logout", follow_redirects=True)
+        response = self._login("demo-seller@canesmarket.local", "marketplace123")
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get("/notifications")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"New offer received", response.data)
+
+        token = self._csrf_token("/notifications")
+        response = self.client.post(
+            f"/notifications/{seller_notification_id}/open",
+            data={"_csrf_token": token},
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"/conversations/{conversation_id}", response.headers["Location"])
+
+        with self.app.app_context():
+            seller_notification = db.session.get(Notification, seller_notification_id)
+            self.assertIsNotNone(seller_notification.read_at)
+
+        token = self._csrf_token("/seller")
+        response = self.client.post(
+            f"/offers/{offer_id}/respond",
+            data={
+                "_csrf_token": token,
+                "action": "counter",
+                "counter_amount": "70.00",
+                "seller_response": "I can do $70.",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with self.app.app_context():
+            buyer = User.query.filter_by(email="buyer@example.com").one()
+            buyer_notification = Notification.query.filter_by(
+                user_id=buyer.id,
+                kind="counter_offer",
+            ).one()
+            self.assertIsNone(buyer_notification.read_at)
+            self.assertIn("$70.00", buyer_notification.body)
+
+        self.client.get("/logout", follow_redirects=True)
+        response = self._login("buyer@example.com", "password123")
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get("/notifications", headers={"Accept": "application/json"})
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["unread_count"], 1)
+        self.assertEqual(payload["notifications"][0]["kind"], "counter_offer")
+
     def test_buyer_cannot_offer_more_than_wallet_balance(self):
         self._create_buyer()
 
@@ -504,6 +689,14 @@ class MarketplaceSmokeTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["marked_read"], 2)
+
+        with self.app.app_context():
+            seller = User.query.filter_by(email="demo-seller@canesmarket.local").one()
+            unread_notifications = Notification.query.filter_by(
+                user_id=seller.id,
+                read_at=None,
+            ).count()
+            self.assertEqual(unread_notifications, 0)
 
         response = self.client.post(
             f"/conversations/{conversation_id}/messages",

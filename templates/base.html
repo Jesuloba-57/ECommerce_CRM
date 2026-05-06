@@ -56,6 +56,12 @@
             <a href="{{ url_for('views.seller_dashboard') }}">Sell</a>
             <a href="{{ url_for('views.activity') }}">Activity</a>
             <a href="{{ url_for('views.conversations') }}">Messages</a>
+            <a class="nav-badge-link" href="{{ url_for('views.notifications') }}">
+                Notifications
+                {% if unread_notification_count %}
+                    <span class="nav-badge">{{ unread_notification_count }}</span>
+                {% endif %}
+            </a>
         {% endif %}
     </nav>
 
