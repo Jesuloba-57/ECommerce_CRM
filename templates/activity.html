@@ -83,6 +83,35 @@
                         {% if offer.seller_response %}
                             <p class="offer-note"><strong>Seller response:</strong> {{ offer.seller_response }}</p>
                         {% endif %}
+                        {% if offer.messages %}
+                            <div class="negotiation-thread">
+                                {% for message in offer.messages|sort(attribute="created_at") %}
+                                    <p class="thread-message thread-{{ message.message_type }}">
+                                        <strong>{{ message.sender.display_name if message.sender else "Marketplace" }}</strong>
+                                        <span>{{ message.body }}</span>
+                                    </p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if offer.status == "countered" %}
+                            <form method="POST" action="{{ url_for('views.buyer_respond_to_offer', offer_id=offer.id) }}" class="form-card compact-form negotiation-actions">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="next" value="{{ request.path }}">
+                                <label>
+                                    <span>Reply to seller</span>
+                                    <textarea name="buyer_response" rows="2" placeholder="Optional note for the seller"></textarea>
+                                </label>
+                                <label>
+                                    <span>Revised offer</span>
+                                    <input type="text" name="amount" placeholder="Only needed if you counter again">
+                                </label>
+                                <div class="button-row">
+                                    <button class="button button-small" type="submit" name="action" value="accept">Accept counter</button>
+                                    <button class="button button-small button-secondary" type="submit" name="action" value="counter">Send revised offer</button>
+                                    <button class="button button-small button-ghost" type="submit" name="action" value="decline">Decline</button>
+                                </div>
+                            </form>
+                        {% endif %}
                     </div>
                 {% endfor %}
             </div>
@@ -113,6 +142,16 @@
                         <p class="offer-note">Offer amount: {{ offer.amount_cents | money }}</p>
                         {% if offer.seller_response %}
                             <p class="offer-note"><strong>Latest response:</strong> {{ offer.seller_response }}</p>
+                        {% endif %}
+                        {% if offer.messages %}
+                            <div class="negotiation-thread">
+                                {% for message in offer.messages|sort(attribute="created_at") %}
+                                    <p class="thread-message thread-{{ message.message_type }}">
+                                        <strong>{{ message.sender.display_name if message.sender else "Marketplace" }}</strong>
+                                        <span>{{ message.body }}</span>
+                                    </p>
+                                {% endfor %}
+                            </div>
                         {% endif %}
                     </div>
                 {% endfor %}

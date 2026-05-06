@@ -698,6 +698,47 @@ textarea:focus {
     padding: 18px;
 }
 
+.negotiation-thread {
+    display: grid;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(225, 209, 193, 0.8);
+}
+
+.thread-message {
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--panel-soft);
+}
+
+.thread-message strong {
+    color: var(--ink);
+    font-size: 0.92rem;
+}
+
+.thread-message span {
+    white-space: pre-line;
+}
+
+.thread-counter {
+    background: #fde6d4;
+}
+
+.thread-accepted {
+    background: #dff3e5;
+}
+
+.thread-declined {
+    background: #e8edf4;
+}
+
+.negotiation-actions {
+    padding-top: 10px;
+    border-top: 1px solid rgba(225, 209, 193, 0.8);
+}
+
 .empty-state {
     padding: 28px;
     border-radius: var(--radius-lg);

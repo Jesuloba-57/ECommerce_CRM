@@ -189,6 +189,30 @@ Example response:
 }
 ```
 
+### Buyer Responds To Seller Counter
+
+```http
+POST /offers/<offer_id>/buyer-respond
+```
+
+Allows the buyer to continue negotiation after a seller sends a counter offer.
+
+Form fields:
+
+```text
+_csrf_token
+action=accept|counter|decline
+buyer_response=<optional note>
+amount=<required only when action=counter>
+next=<optional redirect path>
+```
+
+Behavior:
+
+- `accept`: accepts the seller's counter amount, debits the buyer wallet, credits the seller wallet, marks the listing sold, and records an `accepted` conversation message.
+- `counter`: sends a revised buyer offer, changes the offer back to `pending`, clears the seller counter amount, and records an `offer` conversation message.
+- `decline`: declines the active counter and records a `declined` conversation message.
+
 ## Message Types
 
 The UI should handle these `message_type` values:
@@ -239,6 +263,8 @@ conversation.status !== "active"
 - Call `POST /conversations/<conversation_id>/read` when a user opens or views a conversation.
 - Use `unread_count` in the conversation list.
 - Render offer/counter/accepted/declined messages differently from normal chat text.
+- When an offer status is `countered` and the signed-in user is the buyer, show controls to accept, decline, or send a revised offer.
+- When a buyer sends a revised offer after a counter, show it as a new offer message and let the seller accept, decline, or counter again.
 - Keep the chat tied to the listing, using the included `listing` payload for title, image, price, and status.
 
 ## Current Limitation

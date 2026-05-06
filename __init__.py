@@ -116,7 +116,6 @@ def ensure_user_columns():
 
 def seed_marketplace_data():
     from db_model import INITIAL_WALLET_BALANCE_CENTS, Listing, PriceHistory, User, utc_now
-    from db_model import INITIAL_WALLET_BALANCE_CENTS, Listing, PriceHistory, User, utc_now
 
     if Listing.query.count() > 0:
         return
@@ -130,7 +129,6 @@ def seed_marketplace_data():
             status=True,
             first_name="Campus",
             last_name="Seller",
-            wallet_balance_cents=INITIAL_WALLET_BALANCE_CENTS,
             wallet_balance_cents=INITIAL_WALLET_BALANCE_CENTS,
             created_at=utc_now(),
         )

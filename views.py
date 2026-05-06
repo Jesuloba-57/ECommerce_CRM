@@ -73,6 +73,13 @@ def wallet_balance_cents(user):
     return user.wallet_balance_cents or 0
 
 
+def next_url_or(default_endpoint):
+    next_url = request.form.get("next", "").strip()
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return next_url
+    return url_for(default_endpoint)
+
+
 def datetime_payload(value):
     if value is None:
         return None
@@ -246,6 +253,81 @@ def request_listing_image_upload():
         "content_type": image_file.mimetype,
         "data": image_data,
     }
+
+
+def decline_competing_offers(accepted_offer, now):
+    competing_offers = Offer.query.filter(
+        Offer.listing_id == accepted_offer.listing_id,
+        Offer.id != accepted_offer.id,
+        Offer.status.in_(("pending", "countered")),
+    ).all()
+
+    for competing_offer in competing_offers:
+        competing_offer.status = "declined"
+        competing_offer.seller_response = "Another offer was accepted for this listing."
+        competing_offer.responded_at = now
+        competing_conversation = find_or_create_conversation(
+            listing=accepted_offer.listing,
+            buyer_id=competing_offer.buyer_id,
+            seller_id=competing_offer.seller_id,
+        )
+        competing_conversation.status = "closed"
+        competing_conversation.deal_status = "declined"
+        add_conversation_message(
+            conversation=competing_conversation,
+            sender_id=accepted_offer.seller_id,
+            offer_id=competing_offer.id,
+            body="Another offer was accepted for this listing.",
+            message_type="declined",
+        )
+
+
+def finalize_accepted_offer(
+    offer,
+    conversation,
+    accepted_amount_cents,
+    sender_id,
+    body,
+    now,
+    seller_response=None,
+):
+    buyer = offer.buyer
+    seller = offer.seller
+    if wallet_balance_cents(buyer) < accepted_amount_cents:
+        raise ValueError(
+            f"{buyer.display_name}'s wallet only has "
+            f"{money_label(wallet_balance_cents(buyer))}, so this offer cannot be accepted."
+        )
+
+    buyer.wallet_balance_cents = wallet_balance_cents(buyer) - accepted_amount_cents
+    seller.wallet_balance_cents = wallet_balance_cents(seller) + accepted_amount_cents
+
+    offer.status = "accepted"
+    if seller_response is not None:
+        offer.seller_response = seller_response
+    offer.responded_at = now
+    offer.listing.status = "sold"
+    offer.listing.updated_at = now
+    conversation.deal_status = "accepted"
+    add_conversation_message(
+        conversation=conversation,
+        sender_id=sender_id,
+        offer_id=offer.id,
+        body=body,
+        message_type="accepted",
+    )
+    db.session.add(
+        WalletTransaction(
+            offer_id=offer.id,
+            listing_id=offer.listing_id,
+            buyer_id=buyer.id,
+            seller_id=seller.id,
+            amount_cents=accepted_amount_cents,
+            buyer_balance_after_cents=buyer.wallet_balance_cents,
+            seller_balance_after_cents=seller.wallet_balance_cents,
+        )
+    )
+    decline_competing_offers(offer, now)
 
 
 @views.route("/healthz")
@@ -682,15 +764,6 @@ def submit_offer(listing_id):
         )
         return redirect(url_for("views.listing_detail", listing_id=listing.id))
 
-    if amount_cents > wallet_balance_cents(current_user):
-        flash(
-            "Your wallet balance is "
-            f"{money_label(wallet_balance_cents(current_user))}; "
-            "send an offer within your available app currency.",
-            "error",
-        )
-        return redirect(url_for("views.listing_detail", listing_id=listing.id))
-
     message = request.form.get("message", "").strip()
 
     offer = Offer(
@@ -738,15 +811,6 @@ def respond_to_offer(offer_id):
             joinedload(Offer.seller),
         ],
     )
-    offer = db.get_or_404(
-        Offer,
-        offer_id,
-        options=[
-            joinedload(Offer.listing),
-            joinedload(Offer.buyer),
-            joinedload(Offer.seller),
-        ],
-    )
     if offer.seller_id != current_user.id:
         abort(403)
 
@@ -764,93 +828,23 @@ def respond_to_offer(offer_id):
     )
 
     if action == "accept":
-        buyer = offer.buyer
-        seller = offer.seller
-        if wallet_balance_cents(buyer) < offer.amount_cents:
-            flash(
-                f"{buyer.display_name}'s wallet only has "
-                f"{money_label(wallet_balance_cents(buyer))}, so this offer cannot be accepted.",
-                "error",
-            )
-            return redirect(url_for("views.seller_dashboard"))
-
-        buyer.wallet_balance_cents = wallet_balance_cents(buyer) - offer.amount_cents
-        seller.wallet_balance_cents = wallet_balance_cents(seller) + offer.amount_cents
-
-        buyer = offer.buyer
-        seller = offer.seller
-        if wallet_balance_cents(buyer) < offer.amount_cents:
-            flash(
-                f"{buyer.display_name}'s wallet only has "
-                f"{money_label(wallet_balance_cents(buyer))}, so this offer cannot be accepted.",
-                "error",
-            )
-            return redirect(url_for("views.seller_dashboard"))
-
-        buyer.wallet_balance_cents = wallet_balance_cents(buyer) - offer.amount_cents
-        seller.wallet_balance_cents = wallet_balance_cents(seller) + offer.amount_cents
-
-        offer.status = "accepted"
-        offer.seller_response = response_text or "Offer accepted."
-        offer.responded_at = now
-        offer.listing.status = "sold"
-        offer.listing.updated_at = now
-        conversation.deal_status = "accepted"
-        add_conversation_message(
-            conversation=conversation,
-            sender_id=current_user.id,
-            offer_id=offer.id,
-            body=response_text or f"Offer accepted at {money_label(offer.amount_cents)}.",
-            message_type="accepted",
-        )
-        db.session.add(
-            WalletTransaction(
-                offer_id=offer.id,
-                listing_id=offer.listing_id,
-                buyer_id=buyer.id,
-                seller_id=seller.id,
-                amount_cents=offer.amount_cents,
-                buyer_balance_after_cents=buyer.wallet_balance_cents,
-                seller_balance_after_cents=seller.wallet_balance_cents,
-            )
-        )
-        db.session.add(
-            WalletTransaction(
-                offer_id=offer.id,
-                listing_id=offer.listing_id,
-                buyer_id=buyer.id,
-                seller_id=seller.id,
-                amount_cents=offer.amount_cents,
-                buyer_balance_after_cents=buyer.wallet_balance_cents,
-                seller_balance_after_cents=seller.wallet_balance_cents,
-            )
-        )
-
-        competing_offers = Offer.query.filter(
-            Offer.listing_id == offer.listing_id,
-            Offer.id != offer.id,
-            Offer.status.in_(("pending", "countered")),
-        ).all()
-        for competing_offer in competing_offers:
-            competing_offer.status = "declined"
-            competing_offer.seller_response = "Another offer was accepted for this listing."
-            competing_offer.responded_at = now
-            competing_conversation = find_or_create_conversation(
-                listing=offer.listing,
-                buyer_id=competing_offer.buyer_id,
-                seller_id=competing_offer.seller_id,
-            )
-            competing_conversation.status = "closed"
-            competing_conversation.deal_status = "declined"
-            add_conversation_message(
-                conversation=competing_conversation,
+        try:
+            finalize_accepted_offer(
+                offer=offer,
+                conversation=conversation,
+                accepted_amount_cents=offer.amount_cents,
                 sender_id=current_user.id,
-                offer_id=competing_offer.id,
-                body="Another offer was accepted for this listing.",
-                message_type="declined",
+                body=response_text or f"Offer accepted at {money_label(offer.amount_cents)}.",
+                now=now,
+                seller_response=response_text or "Offer accepted.",
             )
+        except ValueError as exc:
+            flash(
+                str(exc),
+                "error",
+            )
+            return redirect(url_for("views.seller_dashboard"))
 
-        flash("Offer accepted. Buyer wallet debited and seller wallet credited.", "success")
         flash("Offer accepted. Buyer wallet debited and seller wallet credited.", "success")
 
     elif action == "decline":
@@ -899,19 +893,140 @@ def respond_to_offer(offer_id):
     return redirect(url_for("views.seller_dashboard"))
 
 
+@views.route("/offers/<int:offer_id>/buyer-respond", methods=["POST"])
+@login_required
+def buyer_respond_to_offer(offer_id):
+    offer = db.get_or_404(
+        Offer,
+        offer_id,
+        options=[
+            joinedload(Offer.listing),
+            joinedload(Offer.buyer),
+            joinedload(Offer.seller),
+        ],
+    )
+    if offer.buyer_id != current_user.id:
+        abort(403)
+
+    redirect_url = next_url_or("views.activity")
+
+    if offer.status != "countered":
+        flash("That counter offer is no longer active.", "info")
+        return redirect(redirect_url)
+
+    if offer.listing.status != "active":
+        flash("This listing is no longer accepting negotiations.", "error")
+        return redirect(redirect_url)
+
+    action = request.form.get("action", "").strip().lower()
+    response_text = request.form.get("buyer_response", "").strip()
+    now = utc_now()
+    conversation = find_or_create_conversation(
+        listing=offer.listing,
+        buyer_id=offer.buyer_id,
+        seller_id=offer.seller_id,
+    )
+
+    if action == "accept":
+        if offer.counter_amount_cents is None:
+            flash("There is no seller counter offer to accept.", "error")
+            return redirect(redirect_url)
+
+        accepted_amount_cents = offer.counter_amount_cents
+        body = response_text or f"Counter accepted at {money_label(accepted_amount_cents)}."
+        try:
+            finalize_accepted_offer(
+                offer=offer,
+                conversation=conversation,
+                accepted_amount_cents=accepted_amount_cents,
+                sender_id=current_user.id,
+                body=body,
+                now=now,
+            )
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(redirect_url)
+
+        flash("Counter accepted. Your wallet was debited and the seller was credited.", "success")
+
+    elif action == "counter":
+        try:
+            revised_amount_cents = parse_price_to_cents(request.form.get("amount"))
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(redirect_url)
+
+        if revised_amount_cents > wallet_balance_cents(current_user):
+            flash(
+                "Your wallet balance is "
+                f"{money_label(wallet_balance_cents(current_user))}; "
+                "send a counter within your available app currency.",
+                "error",
+            )
+            return redirect(redirect_url)
+
+        offer.amount_cents = revised_amount_cents
+        offer.counter_amount_cents = None
+        offer.status = "pending"
+        offer.seller_response = None
+        offer.responded_at = None
+        conversation.deal_status = "negotiating"
+
+        counter_message = f"Revised offer: {money_label(revised_amount_cents)}"
+        if response_text:
+            counter_message = f"{counter_message}\n{response_text}"
+        add_conversation_message(
+            conversation=conversation,
+            sender_id=current_user.id,
+            offer_id=offer.id,
+            body=counter_message,
+            message_type="offer",
+        )
+        flash("Revised offer sent back to the seller.", "success")
+
+    elif action == "decline":
+        offer.status = "declined"
+        offer.seller_response = "Buyer declined the counter offer."
+        offer.responded_at = now
+        conversation.deal_status = "declined"
+        add_conversation_message(
+            conversation=conversation,
+            sender_id=current_user.id,
+            offer_id=offer.id,
+            body=response_text or "Counter offer declined.",
+            message_type="declined",
+        )
+        flash("Counter offer declined.", "info")
+
+    else:
+        flash("Choose a valid counter response.", "error")
+        return redirect(redirect_url)
+
+    db.session.commit()
+    return redirect(redirect_url)
+
+
 @views.route("/activity")
 @views.route("/cart")
 @login_required
 def activity():
     offers_made = (
-        Offer.query.options(joinedload(Offer.listing), joinedload(Offer.seller))
+        Offer.query.options(
+            joinedload(Offer.listing),
+            joinedload(Offer.seller),
+            selectinload(Offer.messages).joinedload(Message.sender),
+        )
         .filter_by(buyer_id=current_user.id)
         .order_by(Offer.created_at.desc())
         .all()
     )
 
     offers_received = (
-        Offer.query.options(joinedload(Offer.listing), joinedload(Offer.buyer))
+        Offer.query.options(
+            joinedload(Offer.listing),
+            joinedload(Offer.buyer),
+            selectinload(Offer.messages).joinedload(Message.sender),
+        )
         .filter_by(seller_id=current_user.id)
         .order_by(Offer.created_at.desc())
         .all()
@@ -939,27 +1054,10 @@ def activity():
         .all()
     )
 
-    wallet_transactions = (
-        WalletTransaction.query.options(
-            joinedload(WalletTransaction.listing),
-            joinedload(WalletTransaction.buyer),
-            joinedload(WalletTransaction.seller),
-        )
-        .filter(
-            or_(
-                WalletTransaction.buyer_id == current_user.id,
-                WalletTransaction.seller_id == current_user.id,
-            )
-        )
-        .order_by(WalletTransaction.created_at.desc())
-        .all()
-    )
-
     return render_template(
         "activity.html",
         offers_made=offers_made,
         offers_received=offers_received,
         listings=listings,
-        wallet_transactions=wallet_transactions,
         wallet_transactions=wallet_transactions,
     )
