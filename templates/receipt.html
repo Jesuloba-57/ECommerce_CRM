@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Canes Market | Receipt{% endblock %}
+
+{% block content %}
+<section class="receipt-shell">
+    <div class="receipt-confirmation">
+        <p class="eyebrow">Deal confirmed</p>
+        <h1>{{ "CONGRATULATIONS WE HAVE A DEAL" if is_buyer else "SOLD!" }}</h1>
+    </div>
+
+    <article class="panel receipt-panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Receipt #{{ transaction.id }}</p>
+                <h2>{{ transaction.listing.title }}</h2>
+                <p class="muted">{{ transaction.created_at | datetime }}</p>
+            </div>
+            <span class="status-pill status-accepted">accepted</span>
+        </div>
+
+        <div class="receipt-summary">
+            <img src="{{ transaction.listing.image_url }}" alt="{{ transaction.listing.title }}" class="receipt-thumb">
+            <dl class="receipt-details">
+                <div>
+                    <dt>Item</dt>
+                    <dd>{{ transaction.listing.title }}</dd>
+                </div>
+                <div>
+                    <dt>Original Price</dt>
+                    <dd>{{ transaction.listing.price_cents | money }}</dd>
+                </div>
+                <div>
+                    <dt>Final Price</dt>
+                    <dd>{{ transaction.amount_cents | money }}</dd>
+                </div>
+                <div>
+                    <dt>Buyer</dt>
+                    <dd>{{ transaction.buyer.display_name }}</dd>
+                </div>
+                <div>
+                    <dt>Seller</dt>
+                    <dd>{{ transaction.seller.display_name }}</dd>
+                </div>
+                <div>
+                    <dt>Shipping Details</dt>
+                    <dd><span class="status-pill status-pending">{{ shipping_status }}</span></dd>
+                </div>
+            </dl>
+        </div>
+
+        <div class="receipt-actions">
+            <a class="button" href="{{ url_for('views.download_receipt', transaction_id=transaction.id) }}">Download receipt</a>
+            <a class="button button-secondary" href="{{ url_for('views.home') }}">Return to Home</a>
+        </div>
+    </article>
+</section>
+{% endblock %}

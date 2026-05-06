@@ -37,7 +37,11 @@
 
         <div class="header-right">
             {% if current_user.is_authenticated %}
-                <span class="header-user">{{ current_user.display_name }}</span>
+                <div class="user-chip">
+                    <span class="user-chip-label">{{ current_user.display_name }}</span>
+                    <strong>{{ current_user.wallet_balance_cents | money }}</strong>
+                    <small>App wallet</small>
+                </div>
                 <a href="{{ url_for('auth.logout') }}">Logout</a>
             {% else %}
                 <a href="{{ url_for('auth.login') }}">Login</a>
@@ -52,6 +56,12 @@
             <a href="{{ url_for('views.seller_dashboard') }}">Sell</a>
             <a href="{{ url_for('views.activity') }}">Activity</a>
             <a href="{{ url_for('views.conversations') }}">Messages</a>
+            <a class="nav-badge-link" href="{{ url_for('views.notifications') }}">
+                Notifications
+                {% if unread_notification_count %}
+                    <span class="nav-badge">{{ unread_notification_count }}</span>
+                {% endif %}
+            </a>
         {% endif %}
     </nav>
 

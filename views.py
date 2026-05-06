@@ -2,7 +2,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from flask import Blueprint, Response, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import func, or_, text
+from sqlalchemy import case, func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload
 from werkzeug.utils import secure_filename
@@ -13,6 +13,7 @@ from db_model import (
     Listing,
     ListingImage,
     Message,
+    Notification,
     Offer,
     PriceHistory,
     User,
@@ -69,6 +70,36 @@ def wallet_balance_cents(user):
     return user.wallet_balance_cents or 0
 
 
+def next_url_or(default_endpoint):
+    next_url = request.form.get("next", "").strip()
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return next_url
+    return url_for(default_endpoint)
+
+
+def wants_json_response():
+    return request.accept_mimetypes.best_match(["application/json", "text/html"]) == "application/json"
+
+
+def action_error(message, redirect_url, status_code=400, category="error"):
+    if wants_json_response():
+        return jsonify({"error": message}), status_code
+    flash(message, category)
+    return redirect(redirect_url)
+
+
+def action_success(message, redirect_url, conversation=None, category="success", extra=None):
+    if wants_json_response():
+        payload = {"message": message}
+        if conversation is not None:
+            payload["conversation"] = conversation_payload(conversation, include_messages=True)
+        if extra:
+            payload.update(extra)
+        return jsonify(payload)
+    flash(message, category)
+    return redirect(redirect_url)
+
+
 def datetime_payload(value):
     if value is None:
         return None
@@ -96,6 +127,22 @@ def get_accessible_conversation(conversation_id):
     return conversation
 
 
+def get_accessible_wallet_transaction(transaction_id):
+    transaction = db.get_or_404(
+        WalletTransaction,
+        transaction_id,
+        options=[
+            joinedload(WalletTransaction.offer),
+            joinedload(WalletTransaction.listing),
+            joinedload(WalletTransaction.buyer),
+            joinedload(WalletTransaction.seller),
+        ],
+    )
+    if current_user.id not in {transaction.buyer_id, transaction.seller_id}:
+        abort(403)
+    return transaction
+
+
 def find_or_create_conversation(listing, buyer_id, seller_id):
     conversation = Conversation.query.filter_by(
         listing_id=listing.id,
@@ -120,7 +167,202 @@ def find_or_create_conversation(listing, buyer_id, seller_id):
     return conversation
 
 
-def add_conversation_message(conversation, sender_id, body, message_type="text", offer_id=None):
+def notification_payload(notification):
+    return {
+        "id": notification.id,
+        "kind": notification.kind,
+        "title": notification.title,
+        "body": notification.body,
+        "target_url": notification.target_url,
+        "read_at": datetime_payload(notification.read_at),
+        "created_at": datetime_payload(notification.created_at),
+        "actor": {
+            "id": notification.actor.id,
+            "display_name": notification.actor.display_name,
+        }
+        if notification.actor
+        else None,
+    }
+
+
+def create_notification(
+    user_id,
+    kind,
+    title,
+    body,
+    target_url,
+    actor_id=None,
+    listing_id=None,
+    offer_id=None,
+    conversation_id=None,
+    message_id=None,
+):
+    if not user_id or user_id == actor_id:
+        return None
+
+    notification = Notification(
+        user_id=user_id,
+        actor_id=actor_id,
+        listing_id=listing_id,
+        offer_id=offer_id,
+        conversation_id=conversation_id,
+        message_id=message_id,
+        kind=kind,
+        title=title,
+        body=body,
+        target_url=target_url,
+    )
+    db.session.add(notification)
+    return notification
+
+
+def message_notification_details(conversation, message):
+    actor_name = message.sender.display_name if message.sender else "A marketplace user"
+    listing_title = conversation.listing.title
+
+    if message.message_type == "offer":
+        amount = money_label(message.offer.amount_cents) if message.offer else "an offer"
+        if message.sender_id == conversation.buyer_id:
+            return (
+                "new_offer",
+                "New offer received",
+                f"{actor_name} offered {amount} for {listing_title}.",
+            )
+        return (
+            "offer_update",
+            "Offer update",
+            f"{actor_name} updated an offer on {listing_title}.",
+        )
+
+    if message.message_type == "counter":
+        amount = (
+            money_label(message.offer.counter_amount_cents)
+            if message.offer and message.offer.counter_amount_cents
+            else "a counter offer"
+        )
+        return (
+            "counter_offer",
+            "Counter offer received",
+            f"{actor_name} sent a counter offer of {amount} for {listing_title}.",
+        )
+
+    if message.message_type == "accepted":
+        return (
+            "offer_accepted",
+            "Offer accepted",
+            f"{actor_name} accepted the offer for {listing_title}.",
+        )
+
+    if message.message_type == "declined":
+        return (
+            "offer_declined",
+            "Offer declined",
+            f"{actor_name} declined the offer for {listing_title}.",
+        )
+
+    snippet = " ".join((message.body or "").split())
+    if len(snippet) > 120:
+        snippet = f"{snippet[:117]}..."
+    return (
+        "message",
+        "New message",
+        f"{actor_name}: {snippet}",
+    )
+
+
+def notify_conversation_recipient(conversation, message):
+    if message.sender_id == conversation.buyer_id:
+        recipient_id = conversation.seller_id
+    else:
+        recipient_id = conversation.buyer_id
+
+    kind, title, body = message_notification_details(conversation, message)
+    return create_notification(
+        user_id=recipient_id,
+        actor_id=message.sender_id,
+        kind=kind,
+        title=title,
+        body=body,
+        target_url=url_for("views.conversation_detail", conversation_id=conversation.id),
+        listing_id=conversation.listing_id,
+        offer_id=message.offer_id,
+        conversation_id=conversation.id,
+        message_id=message.id,
+    )
+
+
+def notify_item_sold(conversation, offer, transaction):
+    return create_notification(
+        user_id=offer.seller_id,
+        actor_id=None,
+        kind="item_sold",
+        title="Item sold",
+        body=f"{offer.listing.title} sold for {money_label(transaction.amount_cents)}.",
+        target_url=url_for("views.receipt_detail", transaction_id=transaction.id),
+        listing_id=offer.listing_id,
+        offer_id=offer.id,
+        conversation_id=conversation.id,
+    )
+
+
+def notify_buyer_deal_confirmed(conversation, offer, transaction):
+    return create_notification(
+        user_id=offer.buyer_id,
+        actor_id=offer.seller_id,
+        kind="offer_accepted",
+        title="Offer accepted",
+        body=(
+            f"{offer.seller.display_name} accepted the offer for "
+            f"{offer.listing.title}. Final price: {money_label(transaction.amount_cents)}."
+        ),
+        target_url=url_for("views.receipt_detail", transaction_id=transaction.id),
+        listing_id=offer.listing_id,
+        offer_id=offer.id,
+        conversation_id=conversation.id,
+    )
+
+
+def receipt_text(transaction):
+    lines = [
+        "Canes Market Receipt",
+        f"Receipt #: {transaction.id}",
+        f"Date: {transaction.created_at.strftime('%B %d, %Y %I:%M %p')}",
+        "",
+        f"Item: {transaction.listing.title}",
+        f"Seller: {transaction.seller.display_name}",
+        f"Buyer: {transaction.buyer.display_name}",
+        f"Original Price: {money_label(transaction.listing.price_cents)}",
+        f"Final Price: {money_label(transaction.amount_cents)}",
+        "Shipping Details: PENDING",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def mark_notifications_read(user_id, conversation_id=None, notification_id=None):
+    query = Notification.query.filter_by(user_id=user_id, read_at=None)
+    if conversation_id is not None:
+        query = query.filter_by(conversation_id=conversation_id)
+    if notification_id is not None:
+        query = query.filter_by(id=notification_id)
+
+    notifications = query.all()
+    if not notifications:
+        return 0
+
+    now = utc_now()
+    for notification in notifications:
+        notification.read_at = now
+    return len(notifications)
+
+
+def add_conversation_message(
+    conversation,
+    sender_id,
+    body,
+    message_type="text",
+    offer_id=None,
+    notify=True,
+):
     now = utc_now()
     message = Message(
         conversation=conversation,
@@ -133,6 +375,9 @@ def add_conversation_message(conversation, sender_id, body, message_type="text",
     conversation.last_message_at = now
     conversation.updated_at = now
     db.session.add(message)
+    db.session.flush()
+    if notify:
+        notify_conversation_recipient(conversation, message)
     return message
 
 
@@ -244,6 +489,86 @@ def request_listing_image_upload():
     }
 
 
+def decline_competing_offers(accepted_offer, now):
+    competing_offers = Offer.query.filter(
+        Offer.listing_id == accepted_offer.listing_id,
+        Offer.id != accepted_offer.id,
+        Offer.status.in_(("pending", "countered")),
+    ).all()
+
+    for competing_offer in competing_offers:
+        competing_offer.status = "declined"
+        competing_offer.seller_response = "Another offer was accepted for this listing."
+        competing_offer.responded_at = now
+        competing_conversation = find_or_create_conversation(
+            listing=accepted_offer.listing,
+            buyer_id=competing_offer.buyer_id,
+            seller_id=competing_offer.seller_id,
+        )
+        competing_conversation.status = "closed"
+        competing_conversation.deal_status = "declined"
+        add_conversation_message(
+            conversation=competing_conversation,
+            sender_id=accepted_offer.seller_id,
+            offer_id=competing_offer.id,
+            body="Another offer was accepted for this listing.",
+            message_type="declined",
+        )
+
+
+def finalize_accepted_offer(
+    offer,
+    conversation,
+    accepted_amount_cents,
+    sender_id,
+    body,
+    now,
+    seller_response=None,
+):
+    buyer = offer.buyer
+    seller = offer.seller
+    if wallet_balance_cents(buyer) < accepted_amount_cents:
+        raise ValueError(
+            f"{buyer.display_name}'s wallet only has "
+            f"{money_label(wallet_balance_cents(buyer))}, so this offer cannot be accepted."
+        )
+
+    buyer.wallet_balance_cents = wallet_balance_cents(buyer) - accepted_amount_cents
+    seller.wallet_balance_cents = wallet_balance_cents(seller) + accepted_amount_cents
+
+    offer.status = "accepted"
+    if seller_response is not None:
+        offer.seller_response = seller_response
+    offer.responded_at = now
+    offer.listing.status = "sold"
+    offer.listing.updated_at = now
+    conversation.deal_status = "accepted"
+    add_conversation_message(
+        conversation=conversation,
+        sender_id=sender_id,
+        offer_id=offer.id,
+        body=body,
+        message_type="accepted",
+        notify=False,
+    )
+    wallet_transaction = WalletTransaction(
+        offer_id=offer.id,
+        listing_id=offer.listing_id,
+        buyer_id=buyer.id,
+        seller_id=seller.id,
+        amount_cents=accepted_amount_cents,
+        buyer_balance_after_cents=buyer.wallet_balance_cents,
+        seller_balance_after_cents=seller.wallet_balance_cents,
+    )
+    db.session.add(wallet_transaction)
+    db.session.flush()
+    notify_item_sold(conversation, offer, wallet_transaction)
+    if sender_id == offer.seller_id:
+        notify_buyer_deal_confirmed(conversation, offer, wallet_transaction)
+    decline_competing_offers(offer, now)
+    return wallet_transaction
+
+
 @views.route("/healthz")
 def healthz():
     try:
@@ -265,6 +590,88 @@ def listing_image(listing_id):
     response.cache_control.public = True
     response.cache_control.max_age = 3600
     return response
+
+
+@views.route("/notifications")
+@login_required
+def notifications():
+    user_notifications = (
+        Notification.query.options(joinedload(Notification.actor))
+        .filter_by(user_id=current_user.id)
+        .order_by(
+            case((Notification.read_at.is_(None), 0), else_=1),
+            Notification.created_at.desc(),
+        )
+        .limit(50)
+        .all()
+    )
+
+    unread_count = Notification.query.filter_by(
+        user_id=current_user.id,
+        read_at=None,
+    ).count()
+
+    if wants_json_response():
+        return jsonify(
+            {
+                "unread_count": unread_count,
+                "notifications": [
+                    notification_payload(notification) for notification in user_notifications
+                ],
+            }
+        )
+
+    return render_template(
+        "notifications.html",
+        notifications=user_notifications,
+        unread_count=unread_count,
+    )
+
+
+@views.route("/notifications/read", methods=["POST"])
+@login_required
+def mark_all_notifications_read():
+    marked_read = mark_notifications_read(current_user.id)
+    db.session.commit()
+
+    if wants_json_response():
+        return jsonify({"marked_read": marked_read})
+
+    return redirect(url_for("views.notifications"))
+
+
+@views.route("/notifications/<int:notification_id>/read", methods=["POST"])
+@login_required
+def mark_notification_read(notification_id):
+    notification = db.get_or_404(Notification, notification_id)
+    if notification.user_id != current_user.id:
+        abort(403)
+
+    if notification.read_at is None:
+        notification.read_at = utc_now()
+        marked_read = 1
+    else:
+        marked_read = 0
+    db.session.commit()
+
+    if wants_json_response():
+        return jsonify({"marked_read": marked_read, "notification": notification_payload(notification)})
+
+    return redirect(url_for("views.notifications"))
+
+
+@views.route("/notifications/<int:notification_id>/open", methods=["POST"])
+@login_required
+def open_notification(notification_id):
+    notification = db.get_or_404(Notification, notification_id)
+    if notification.user_id != current_user.id:
+        abort(403)
+
+    if notification.read_at is None:
+        notification.read_at = utc_now()
+    target_url = notification.target_url or url_for("views.notifications")
+    db.session.commit()
+    return redirect(target_url)
 
 
 @views.route("/conversations")
@@ -349,6 +756,7 @@ def mark_conversation_read(conversation_id):
             message.read_at = now
             marked_read += 1
 
+    mark_notifications_read(current_user.id, conversation_id=conversation.id)
     db.session.commit()
 
     return jsonify(
@@ -356,6 +764,30 @@ def mark_conversation_read(conversation_id):
             "marked_read": marked_read,
             "conversation": conversation_payload(conversation, include_messages=True),
         }
+    )
+
+
+@views.route("/receipts/<int:transaction_id>")
+@login_required
+def receipt_detail(transaction_id):
+    transaction = get_accessible_wallet_transaction(transaction_id)
+    return render_template(
+        "receipt.html",
+        transaction=transaction,
+        is_buyer=transaction.buyer_id == current_user.id,
+        shipping_status="PENDING",
+    )
+
+
+@views.route("/receipts/<int:transaction_id>/download")
+@login_required
+def download_receipt(transaction_id):
+    transaction = get_accessible_wallet_transaction(transaction_id)
+    filename = f"canes-market-receipt-{transaction.id}.txt"
+    return Response(
+        receipt_text(transaction),
+        mimetype="text/plain",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
@@ -722,6 +1154,7 @@ def submit_offer(listing_id):
 @views.route("/offers/<int:offer_id>/respond", methods=["POST"])
 @login_required
 def respond_to_offer(offer_id):
+    redirect_url = url_for("views.seller_dashboard")
     offer = db.get_or_404(
         Offer,
         offer_id,
@@ -735,12 +1168,17 @@ def respond_to_offer(offer_id):
         abort(403)
 
     if offer.status not in {"pending", "countered"}:
-        flash("That offer has already been finalized.", "info")
-        return redirect(url_for("views.seller_dashboard"))
+        return action_error(
+            "That offer has already been finalized.",
+            redirect_url,
+            status_code=409,
+            category="info",
+        )
 
     action = request.form.get("action", "").strip().lower()
     response_text = request.form.get("seller_response", "").strip()
     now = utc_now()
+    response_extra = None
     conversation = find_or_create_conversation(
         listing=offer.listing,
         buyer_id=offer.buyer_id,
@@ -748,69 +1186,25 @@ def respond_to_offer(offer_id):
     )
 
     if action == "accept":
-        buyer = offer.buyer
-        seller = offer.seller
-        if wallet_balance_cents(buyer) < offer.amount_cents:
-            flash(
-                f"{buyer.display_name}'s wallet only has "
-                f"{money_label(wallet_balance_cents(buyer))}, so this offer cannot be accepted.",
-                "error",
-            )
-            return redirect(url_for("views.seller_dashboard"))
-
-        buyer.wallet_balance_cents = wallet_balance_cents(buyer) - offer.amount_cents
-        seller.wallet_balance_cents = wallet_balance_cents(seller) + offer.amount_cents
-
-        offer.status = "accepted"
-        offer.seller_response = response_text or "Offer accepted."
-        offer.responded_at = now
-        offer.listing.status = "sold"
-        offer.listing.updated_at = now
-        conversation.deal_status = "accepted"
-        add_conversation_message(
-            conversation=conversation,
-            sender_id=current_user.id,
-            offer_id=offer.id,
-            body=response_text or f"Offer accepted at {money_label(offer.amount_cents)}.",
-            message_type="accepted",
-        )
-        db.session.add(
-            WalletTransaction(
-                offer_id=offer.id,
-                listing_id=offer.listing_id,
-                buyer_id=buyer.id,
-                seller_id=seller.id,
-                amount_cents=offer.amount_cents,
-                buyer_balance_after_cents=buyer.wallet_balance_cents,
-                seller_balance_after_cents=seller.wallet_balance_cents,
-            )
-        )
-
-        competing_offers = Offer.query.filter(
-            Offer.listing_id == offer.listing_id,
-            Offer.id != offer.id,
-            Offer.status.in_(("pending", "countered")),
-        ).all()
-        for competing_offer in competing_offers:
-            competing_offer.status = "declined"
-            competing_offer.seller_response = "Another offer was accepted for this listing."
-            competing_offer.responded_at = now
-            competing_conversation = find_or_create_conversation(
-                listing=offer.listing,
-                buyer_id=competing_offer.buyer_id,
-                seller_id=competing_offer.seller_id,
-            )
-            competing_conversation.status = "closed"
-            competing_conversation.deal_status = "declined"
-            add_conversation_message(
-                conversation=competing_conversation,
+        try:
+            wallet_transaction = finalize_accepted_offer(
+                offer=offer,
+                conversation=conversation,
+                accepted_amount_cents=offer.amount_cents,
                 sender_id=current_user.id,
-                offer_id=competing_offer.id,
-                body="Another offer was accepted for this listing.",
-                message_type="declined",
+                body=response_text or f"Offer accepted at {money_label(offer.amount_cents)}.",
+                now=now,
+                seller_response=response_text or "Offer accepted.",
             )
+        except ValueError as exc:
+            return action_error(str(exc), redirect_url)
 
-        flash("Offer accepted. Buyer wallet debited and seller wallet credited.", "success")
+        success_message = "SOLD! Buyer wallet debited and seller wallet credited."
+        success_category = "success"
+        response_extra = {
+            "celebration_message": "SOLD!",
+            "receipt_url": url_for("views.receipt_detail", transaction_id=wallet_transaction.id),
+        }
 
     elif action == "decline":
         offer.status = "declined"
@@ -824,14 +1218,14 @@ def respond_to_offer(offer_id):
             body=response_text or "Offer declined.",
             message_type="declined",
         )
-        flash("Offer declined.", "info")
+        success_message = "Offer declined."
+        success_category = "info"
 
     elif action == "counter":
         try:
             counter_amount_cents = parse_price_to_cents(request.form.get("counter_amount"))
         except ValueError as exc:
-            flash(str(exc), "error")
-            return redirect(url_for("views.seller_dashboard"))
+            return action_error(str(exc), redirect_url)
 
         offer.status = "countered"
         offer.counter_amount_cents = counter_amount_cents
@@ -848,14 +1242,153 @@ def respond_to_offer(offer_id):
             body=counter_message,
             message_type="counter",
         )
-        flash("Counter offer sent.", "success")
+        success_message = "Counter offer sent."
+        success_category = "success"
 
     else:
-        flash("Choose a valid offer action.", "error")
-        return redirect(url_for("views.seller_dashboard"))
+        return action_error("Choose a valid offer action.", redirect_url)
 
     db.session.commit()
-    return redirect(url_for("views.seller_dashboard"))
+    return action_success(
+        success_message,
+        redirect_url,
+        conversation=conversation,
+        category=success_category,
+        extra=response_extra,
+    )
+
+
+@views.route("/offers/<int:offer_id>/buyer-respond", methods=["POST"])
+@login_required
+def buyer_respond_to_offer(offer_id):
+    offer = db.get_or_404(
+        Offer,
+        offer_id,
+        options=[
+            joinedload(Offer.listing),
+            joinedload(Offer.buyer),
+            joinedload(Offer.seller),
+        ],
+    )
+    if offer.buyer_id != current_user.id:
+        abort(403)
+
+    redirect_url = next_url_or("views.activity")
+
+    if offer.status != "countered":
+        return action_error(
+            "That counter offer is no longer active.",
+            redirect_url,
+            status_code=409,
+            category="info",
+        )
+
+    if offer.listing.status != "active":
+        return action_error(
+            "This listing is no longer accepting negotiations.",
+            redirect_url,
+            status_code=409,
+        )
+
+    action = request.form.get("action", "").strip().lower()
+    response_text = request.form.get("buyer_response", "").strip()
+    now = utc_now()
+    response_extra = None
+    conversation = find_or_create_conversation(
+        listing=offer.listing,
+        buyer_id=offer.buyer_id,
+        seller_id=offer.seller_id,
+    )
+
+    if action == "accept":
+        if offer.counter_amount_cents is None:
+            return action_error("There is no seller counter offer to accept.", redirect_url)
+
+        accepted_amount_cents = offer.counter_amount_cents
+        body = response_text or f"Counter accepted at {money_label(accepted_amount_cents)}."
+        try:
+            wallet_transaction = finalize_accepted_offer(
+                offer=offer,
+                conversation=conversation,
+                accepted_amount_cents=accepted_amount_cents,
+                sender_id=current_user.id,
+                body=body,
+                now=now,
+            )
+        except ValueError as exc:
+            return action_error(str(exc), redirect_url)
+
+        success_message = "Counter accepted. Your wallet was debited and the seller was credited."
+        success_category = "success"
+        receipt_url = url_for("views.receipt_detail", transaction_id=wallet_transaction.id)
+        redirect_url = receipt_url
+        response_extra = {
+            "celebration_message": "CONGRATULATIONS WE HAVE A DEAL",
+            "receipt_url": receipt_url,
+            "redirect_url": receipt_url,
+            "redirect_after_ms": 1800,
+        }
+
+    elif action == "counter":
+        try:
+            revised_amount_cents = parse_price_to_cents(request.form.get("amount"))
+        except ValueError as exc:
+            return action_error(str(exc), redirect_url)
+
+        if revised_amount_cents > wallet_balance_cents(current_user):
+            return action_error(
+                "Your wallet balance is "
+                f"{money_label(wallet_balance_cents(current_user))}; "
+                "send a counter within your available app currency.",
+                redirect_url,
+            )
+
+        offer.amount_cents = revised_amount_cents
+        offer.counter_amount_cents = None
+        offer.status = "pending"
+        offer.seller_response = None
+        offer.responded_at = None
+        conversation.deal_status = "negotiating"
+
+        counter_message = f"Revised offer: {money_label(revised_amount_cents)}"
+        if response_text:
+            counter_message = f"{counter_message}\n{response_text}"
+        add_conversation_message(
+            conversation=conversation,
+            sender_id=current_user.id,
+            offer_id=offer.id,
+            body=counter_message,
+            message_type="offer",
+        )
+        success_message = "Revised offer sent back to the seller."
+        success_category = "success"
+
+    elif action == "decline":
+        offer.status = "declined"
+        offer.seller_response = "Buyer declined the counter offer."
+        offer.responded_at = now
+        conversation.deal_status = "declined"
+        add_conversation_message(
+            conversation=conversation,
+            sender_id=current_user.id,
+            offer_id=offer.id,
+            body=response_text or "Counter offer declined.",
+            message_type="declined",
+        )
+        success_message = "Counter offer declined."
+        success_category = "info"
+
+    else:
+        return action_error("Choose a valid counter response.", redirect_url)
+
+    db.session.commit()
+    return action_success(
+        success_message,
+        redirect_url,
+        conversation=conversation,
+        category=success_category,
+        extra=response_extra,
+    )
 
 
 @views.route("/activity")
@@ -863,14 +1396,22 @@ def respond_to_offer(offer_id):
 @login_required
 def activity():
     offers_made = (
-        Offer.query.options(joinedload(Offer.listing), joinedload(Offer.seller))
+        Offer.query.options(
+            joinedload(Offer.listing),
+            joinedload(Offer.seller),
+            selectinload(Offer.messages).joinedload(Message.sender),
+        )
         .filter_by(buyer_id=current_user.id)
         .order_by(Offer.created_at.desc())
         .all()
     )
 
     offers_received = (
-        Offer.query.options(joinedload(Offer.listing), joinedload(Offer.buyer))
+        Offer.query.options(
+            joinedload(Offer.listing),
+            joinedload(Offer.buyer),
+            selectinload(Offer.messages).joinedload(Message.sender),
+        )
         .filter_by(seller_id=current_user.id)
         .order_by(Offer.created_at.desc())
         .all()

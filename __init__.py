@@ -4,7 +4,7 @@ from secrets import token_urlsafe
 
 import shortuuid
 from flask import Flask, abort, request, session
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect, text
 from werkzeug.security import generate_password_hash
@@ -40,6 +40,19 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_id):
         return db.session.get(User, user_id)
+
+    @app.context_processor
+    def inject_notification_count():
+        if not current_user.is_authenticated:
+            return {"unread_notification_count": 0}
+
+        from db_model import Notification
+
+        unread_count = Notification.query.filter_by(
+            user_id=current_user.id,
+            read_at=None,
+        ).count()
+        return {"unread_notification_count": unread_count}
 
     app.jinja_env.filters["money"] = format_money
     app.jinja_env.filters["datetime"] = format_datetime
