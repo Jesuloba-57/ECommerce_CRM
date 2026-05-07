@@ -1,6 +1,8 @@
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
-from flask import Blueprint, Response, abort, flash, jsonify, redirect, render_template, request, url_for
+import os
+
+from flask import Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import case, func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -765,6 +767,60 @@ def mark_conversation_read(conversation_id):
             "conversation": conversation_payload(conversation, include_messages=True),
         }
     )
+
+
+@views.route("/profile")
+@login_required
+def profile():
+    return render_template(
+        "profile.html",
+        user=current_user,
+        wallet_balance_cents=wallet_balance_cents(current_user),
+    )
+
+
+@views.route("/profile/picture", methods=["POST"])
+@login_required
+def upload_profile_picture():
+    uploaded_file = request.files.get("picture")
+    if uploaded_file is None or not uploaded_file.filename:
+        return action_error("Choose an image file to upload.", url_for("views.profile"))
+
+    content_type = (uploaded_file.mimetype or "").lower()
+    if content_type not in {"image/jpeg", "image/png", "image/gif", "image/webp"}:
+        return action_error("Upload a JPG, PNG, GIF, or WEBP image.", url_for("views.profile"))
+
+    filename = secure_filename(uploaded_file.filename)
+    _, extension = os.path.splitext(filename)
+    extension = extension.lower() or ".png"
+
+    profile_dir = os.path.join(current_app.static_folder, "images", "profiles")
+    os.makedirs(profile_dir, exist_ok=True)
+    saved_name = f"profile_{current_user.id}{extension}"
+    saved_path = os.path.join(profile_dir, saved_name)
+    uploaded_file.save(saved_path)
+
+    current_user.profile_image_url = f"/static/images/profiles/{saved_name}"
+    db.session.add(current_user)
+    db.session.commit()
+
+    return action_success("Profile picture updated.", url_for("views.profile"))
+
+
+@views.route("/profile/wallet/add", methods=["POST"])
+@login_required
+def add_wallet_funds():
+    amount_raw = request.form.get("amount", "")
+    try:
+        amount_cents = parse_price_to_cents(amount_raw)
+    except ValueError as exc:
+        return action_error(str(exc), url_for("views.profile"))
+
+    current_user.wallet_balance_cents = wallet_balance_cents(current_user) + amount_cents
+    db.session.add(current_user)
+    db.session.commit()
+
+    return action_success("Funds added to your wallet (simulation only).", url_for("views.profile"))
 
 
 @views.route("/receipts/<int:transaction_id>")
