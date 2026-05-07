@@ -37,11 +37,11 @@
 
         <div class="header-right">
             {% if current_user.is_authenticated %}
-                <div class="user-chip">
+                <a class="user-chip" href="{{ url_for('views.activity') }}">
                     <span class="user-chip-label">{{ current_user.display_name }}</span>
                     <strong>{{ current_user.wallet_balance_cents | money }}</strong>
                     <small>App wallet</small>
-                </div>
+                </a>
                 <a href="{{ url_for('auth.logout') }}">Logout</a>
             {% else %}
                 <a href="{{ url_for('auth.login') }}">Login</a>
