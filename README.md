@@ -1,7 +1,6 @@
 # Canes Market
 
 Canes Market is a Flask marketplace app for browsing campus-friendly listings, creating seller accounts, publishing items, tracking price history, sending or responding to offers, and settling completed purchases with an in-app wallet.
-Canes Market is a Flask marketplace app for browsing campus-friendly listings, creating seller accounts, publishing items, tracking price history, sending or responding to offers, and settling completed purchases with an in-app wallet.
 
 ## Tech Stack
 
@@ -9,7 +8,9 @@ Canes Market is a Flask marketplace app for browsing campus-friendly listings, c
 - Flask
 - Flask-SQLAlchemy
 - Flask-Login
-- SQLite for local development
+- PostgreSQL on Neon
+
+The database uses a shared `user` table for login credentials and wallet balance, plus separate tables for listings, offers, conversations, and notifications.
 
 ## Project Structure
 
@@ -25,7 +26,6 @@ Canes Market is a Flask marketplace app for browsing campus-friendly listings, c
 |-- tests/               # Smoke tests for core workflows
 |-- templates/           # Jinja templates
 |-- static/              # CSS and images
-`-- instance/            # Local SQLite database location
 ```
 
 ## Run Locally
@@ -37,6 +37,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+export DATABASE_URL="postgresql+psycopg2://<user>:<password>@<host>:<port>/<db>?sslmode=require&channel_binding=require"
 python main.py
 ```
 
@@ -67,14 +68,14 @@ Sellers can upload listing images from the seller dashboard by dragging an image
 
 ## Environment Variables
 
-These are optional for local development:
+Set these before starting the app:
 
 ```bash
 export SECRET_KEY="replace-with-a-local-secret"
-export DATABASE_URL="sqlite:///database.db"
+export DATABASE_URL="postgresql+psycopg2://<user>:<password>@<host>:<port>/<db>?sslmode=require&channel_binding=require"
 ```
 
-If `DATABASE_URL` is not set, the app defaults to a local SQLite database named `database.db`. With Flask-SQLAlchemy, the active local database is stored under the app instance folder, usually `instance/database.db`.
+`DATABASE_URL` should point to your Neon Postgres database. The app no longer falls back to SQLite.
 
 ## Render Deployment
 
@@ -162,29 +163,18 @@ After each deployment, verify:
 - `/signup` - Create an account
 - `/login` - Log in
 - `/seller` - Seller dashboard for creating listings, updating prices, and responding to offers
-- `/activity` - Buyer and seller offer activity with wallet balance and completed transfers
-- `/activity` - Buyer and seller offer activity with wallet balance and completed transfers
+- `/activity` - Offer activity with wallet balance and completed transfers
 - `/cart` - Alias for the activity page
-- `/conversations` - JSON list of the signed-in user's buyer/seller chats
+- `/conversations` - JSON list of the signed-in user's chats
 - `/conversations/<id>` - JSON detail for one chat, including messages
 - `/conversations/<id>/messages` - POST a new chat message
 - `/conversations/<id>/read` - POST to mark received messages as read
 
-## Reset Local Data
+Signed-in users can browse listings, send offers, and use the seller dashboard when applicable.
 
-To start with a fresh local database, stop the Flask server and remove the SQLite database in the `instance` folder:
+## Reset Data
 
-```bash
-rm instance/database.db
-```
-
-Then start the app again:
-
-```bash
-python main.py
-```
-
-The database tables and demo listings will be recreated automatically.
+If you need to reset test data in Neon, do so directly in the Postgres database or through your normal Neon workflow. The app seeds demo marketplace listings when the listings table is empty.
 
 Local databases, virtual environments, Python cache files, and macOS `.DS_Store` files are ignored by Git.
 
@@ -198,7 +188,7 @@ If imports fail, make sure your virtual environment is active and dependencies w
 python -m pip install -r requirements.txt
 ```
 
-If database state looks stale, reset `instance/database.db` and restart the app.
+If database state looks stale, reset the relevant rows in Neon and restart the app.
 
 ## Tests
 
@@ -208,5 +198,4 @@ Run the smoke test suite with:
 python -m unittest discover
 ```
 
-The tests use a temporary SQLite database and cover the main marketplace paths: browsing seeded listings, CSRF protection, signup wallet credit, listing creation, price history, funded offer submission, seller acceptance with wallet transfer, conversation creation, message sending, read receipts, and chat access control.
 The tests use a temporary SQLite database and cover the main marketplace paths: browsing seeded listings, CSRF protection, signup wallet credit, listing creation, price history, funded offer submission, seller acceptance with wallet transfer, conversation creation, message sending, read receipts, and chat access control.

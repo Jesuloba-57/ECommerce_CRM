@@ -18,6 +18,7 @@ class User(db.Model, UserMixin):
     status = db.Column(db.Boolean, default=True)
     first_name = db.Column(db.String(100))
     last_name = db.Column(db.String(100))
+    profile_image_url = db.Column(db.String(255))
     wallet_balance_cents = db.Column(
         db.Integer,
         nullable=False,

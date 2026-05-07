@@ -100,6 +100,11 @@ def ensure_user_columns():
             f"ALTER TABLE {user_table} ADD COLUMN "
             f"{column_definition('last_name', db.String(100))}"
         )
+    if "profile_image_url" not in existing_columns:
+        statements.append(
+            f"ALTER TABLE {user_table} ADD COLUMN "
+            f"{column_definition('profile_image_url', db.String(255))}"
+        )
     if "wallet_balance_cents" not in existing_columns:
         wallet_suffix = f" NOT NULL DEFAULT {INITIAL_WALLET_BALANCE_CENTS}"
         statements.append(

@@ -1,0 +1,1 @@
+{% macro new_badge(listing, now) %}{% if (now - listing.created_at).total_seconds() < 86400 %}<span class="badge-new">NEW</span>{% endif %}{% endmacro %}
