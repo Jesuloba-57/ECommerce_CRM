@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Canes Market{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:800px;margin:24px auto;">
+  <h2>Profile</h2>
+  <div class="row">
+    <div class="col-md-4">
+      <div class="card">
+        <img src="{{ user.profile_image_url or url_for('static', filename='images/guy1.avif') }}" class="card-img-top" alt="Profile picture">
+        <div class="card-body">
+          <h5 class="card-title">{{ user.display_name }}</h5>
+          <p class="card-text">{{ user.email }}</p>
+        </div>
+      </div>
+      <form action="{{ url_for('views.upload_profile_picture') }}" method="post" enctype="multipart/form-data" style="margin-top:12px;">
+        <label for="picture">Update profile picture</label>
+        <input type="file" name="picture" id="picture" accept="image/*" class="form-control" required>
+        <button class="button button-small" type="submit" style="margin-top:6px;">Upload</button>
+      </form>
+    </div>
+
+    <div class="col-md-8">
+      <div class="card" style="padding:12px;">
+        <h4>Wallet</h4>
+        <p><strong>Balance:</strong> {{ wallet_balance_cents | money }}</p>
+
+        <form action="{{ url_for('views.add_wallet_funds') }}" method="post" style="max-width:320px;">
+          <label for="amount">Add funds (USD)</label>
+          <input id="amount" name="amount" placeholder="$10.00" class="form-control" required>
+          <small class="muted">Connecting other payment methods is disabled for privacy — adding funds is simulated.</small>
+          <button class="button" type="submit" style="margin-top:8px;">Add funds</button>
+        </form>
+      </div>
+
+      <div style="margin-top:12px;">
+        <h5>Account actions</h5>
+        <a href="{{ url_for('views.activity') }}">View activity</a>
+        {% if user.is_seller %}
+        <div><a href="{{ url_for('views.seller_dashboard') }}">Seller dashboard</a></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
