@@ -11,6 +11,7 @@
             alt="Profile picture for {{ user.display_name }}"
         >
         <form action="{{ url_for('views.upload_profile_picture') }}" method="post" enctype="multipart/form-data" class="profile-upload-form">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <label for="picture">Update profile picture</label>
             <input type="file" name="picture" id="picture" accept="image/*" required>
             <button class="button button-small" type="submit">Upload image</button>
@@ -63,6 +64,7 @@
         </div>
 
         <form action="{{ url_for('views.add_wallet_funds') }}" method="post" class="profile-wallet-form">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <label for="amount">Add wallet funds</label>
             <input id="amount" name="amount" type="text" placeholder="$10.00" inputmode="decimal" required>
             <button class="button" type="submit">Add funds</button>
