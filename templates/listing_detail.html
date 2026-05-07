@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import new_badge %}
 
 {% block title %}Canes Market | {{ listing.title }}{% endblock %}
 
@@ -184,7 +185,10 @@
         <div class="card-grid">
             {% for related in related_listings %}
                 <article class="market-card">
-                    <img src="{{ related.image_url }}" alt="{{ related.title }}" class="market-card-image">
+                    <div class="listing-img-wrap">
+                        <img src="{{ related.image_url }}" alt="{{ related.title }}" class="market-card-image">
+                        {{ new_badge(related, now) }}
+                    </div>
                     <div class="market-card-body">
                         <div class="tag-row">
                             <span class="pill">{{ related.category }}</span>

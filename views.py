@@ -795,6 +795,7 @@ def download_receipt(transaction_id):
 def home():
     search = request.args.get("q", "").strip()
     category = request.args.get("category", "").strip()
+    sort = request.args.get("sort", "newest").strip()
 
     listings_query = Listing.query.options(joinedload(Listing.seller)).filter(Listing.status == "active")
 
@@ -812,7 +813,29 @@ def home():
     if category:
         listings_query = listings_query.filter(Listing.category == category)
 
-    listings = listings_query.order_by(Listing.updated_at.desc()).all()
+    _sort_map = {
+        "newest":     Listing.created_at.desc(),
+        "oldest":     Listing.created_at.asc(),
+        "price_asc":  Listing.price_cents.asc(),
+        "price_desc": Listing.price_cents.desc(),
+    }
+    listings = listings_query.order_by(_sort_map.get(sort, Listing.created_at.desc())).all()
+
+    new_listings = (
+        Listing.query.options(joinedload(Listing.seller))
+        .filter(Listing.status == "active")
+        .order_by(Listing.created_at.desc())
+        .limit(4)
+        .all()
+    )
+
+    cheap_listings = (
+        Listing.query.options(joinedload(Listing.seller))
+        .filter(Listing.status == "active")
+        .order_by(Listing.price_cents.asc())
+        .limit(4)
+        .all()
+    )
 
     recent_price_drops = (
         PriceHistory.query.options(joinedload(PriceHistory.listing))
@@ -846,12 +869,16 @@ def home():
     return render_template(
         "index.html",
         listings=listings,
+        new_listings=new_listings,
+        cheap_listings=cheap_listings,
         categories=LISTING_CATEGORIES,
         selected_category=category,
         search=search,
+        sort=sort,
         recent_price_drops=recent_price_drops,
         featured_sellers=featured_sellers,
         stats=stats,
+        now=utc_now(),
     )
 
 
@@ -1085,6 +1112,7 @@ def listing_detail(listing_id):
         listing=listing,
         related_listings=related_listings,
         viewer_offers=viewer_offers,
+        now=utc_now(),
     )
 
 
