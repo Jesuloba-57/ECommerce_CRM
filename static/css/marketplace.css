@@ -264,6 +264,7 @@ input, select, textarea, button {
     top: 0;
     left: 0;
     height: 100vh;
+    height: 100dvh; /* accounts for mobile browser chrome (address bar) */
     width: 280px;
     background: #ffffff;
     border-right: 1px solid var(--line);
@@ -309,6 +310,85 @@ input, select, textarea, button {
 
 .drawer-item:hover {
     background: var(--bg-accent);
+}
+
+/* ── Search button icon (hidden by default, shown on mobile) ─── */
+
+.search-btn-icon {
+    display: none;
+}
+
+/* ── Drawer user section ─────────────────────────────────────── */
+
+.drawer-user-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel-soft);
+    text-decoration: none;
+    transition: background 0.12s;
+}
+
+.drawer-user-section:hover {
+    background: var(--bg-accent);
+}
+
+.drawer-avatar-circle {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #000000;
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.drawer-user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.drawer-user-name {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.drawer-user-wallet-block {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+}
+
+.drawer-user-wallet-amount {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: var(--ink);
+}
+
+.drawer-user-wallet-label {
+    font-size: 0.76rem;
+    color: var(--muted);
+}
+
+.drawer-signout {
+    margin-top: auto;
+    color: var(--muted);
+    font-weight: 600;
 }
 
 /* ── Floating chat button ────────────────────────────────────── */
@@ -1813,8 +1893,96 @@ textarea:focus {
         max-width: none;
     }
 
+    /* Hide user-chip wallet block and logout link in header on mobile */
+    .header-right .user-chip,
+    .header-logout {
+        display: none;
+    }
+
+    /* Search button: shrink to icon-only */
+    .search-btn-text {
+        display: none;
+    }
+
+    .search-btn-icon {
+        display: block;
+    }
+
+    .header-search button {
+        padding: 0 12px;
+    }
+
     .header-user {
         display: none;
+    }
+
+    /* Hero banner: simplified on mobile — text + CTA only */
+    .hero-banner {
+        padding-top: 28px;
+        padding-bottom: 28px;
+        min-height: 0;
+    }
+
+    .hero-left {
+        padding: 0 28px;
+        align-items: center;
+        text-align: center;
+        flex: none;
+    }
+
+    .hero-headline {
+        font-size: 1.75rem;
+    }
+
+    .hero-tagline {
+        font-size: 0.95rem;
+    }
+
+    /* Hide carousel elements on mobile */
+    .hero-right,
+    .hero-arrow,
+    .hero-dots {
+        display: none;
+    }
+
+    /* Hide "Just listed" / "Top deals" boxes on mobile */
+    .home-boxes-row {
+        display: none !important;
+    }
+
+    /* Category row: horizontal scroll on mobile, no wrapping */
+    .category-row {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 2px;
+        margin-bottom: 16px;
+    }
+
+    .category-row::-webkit-scrollbar {
+        display: none;
+    }
+
+    .category-tile {
+        flex-shrink: 0;
+    }
+
+    /* Sort row: label above dropdown, full width */
+    .sort-row {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+    }
+
+    .sort-select-wrap {
+        width: 100%;
+    }
+
+    .sort-row select {
+        min-width: 0;
+        max-width: none;
+        width: 100%;
     }
 
     .profile-hero,
@@ -1911,9 +2079,9 @@ textarea:focus {
         grid-template-columns: 1fr;
     }
 
-    .header-search button {
-        padding: 0 10px;
-        font-size: 0.82rem;
+    /* Shrink brand wordmark to save header space on very narrow screens */
+    .brand-wordmark {
+        font-size: 0.9rem;
     }
 
     .deal-celebration-card strong {
@@ -2120,6 +2288,7 @@ textarea:focus {
     color: #000000;
     margin: 0 0 12px;
     line-height: 1.2;
+    text-align: left;
 }
 
 .home-box-grid {
@@ -2265,37 +2434,10 @@ textarea:focus {
 @media (max-width: 640px) {
     .hero-banner {
         flex-direction: column;
-        min-height: auto;
-        padding-top: 32px;
-        padding-bottom: 32px;
-    }
-
-    .hero-left {
-        padding: 0 24px 28px;
-        align-items: center;
-        text-align: center;
-    }
-
-    .hero-headline { font-size: 1.8rem; }
-
-    .hero-right {
-        flex: none;
-        padding: 0 24px;
-        width: 100%;
-    }
-
-    .hero-card { width: 100%; max-width: 280px; }
-    .hero-card-img { height: 200px; }
-
-    .hero-arrow-prev { left: 8px; }
-    .hero-arrow-next { right: 8px; }
-}
-
-@media (max-width: 480px) {
-    .home-boxes-row {
-        grid-template-columns: 1fr;
     }
 }
+
+/* .home-boxes-row stacking moved to @media (max-width: 640px) */
 
 /* ── Sort row ────────────────────────────────────────────────── */
 
@@ -2371,4 +2513,59 @@ textarea:focus {
     line-height: 1;
     padding: 3px 6px;
     pointer-events: none;
+}
+
+/* ── Mobile overrides (highest source-order — must stay at end) ── */
+
+@media (max-width: 640px) {
+    /* Hide all carousel elements completely */
+    .hero-banner .hero-right,
+    .hero-banner .hero-arrow,
+    .hero-banner .hero-arrow-prev,
+    .hero-banner .hero-arrow-next,
+    .hero-banner .hero-dots,
+    .hero-card,
+    .hero-card-img,
+    .hero-card-info {
+        display: none !important;
+    }
+
+    /* Hide the boxes section on mobile */
+    .home-boxes-row,
+    .home-boxes-row * {
+        display: none !important;
+    }
+
+    /* Hero banner: tight, single-column, content-sized */
+    .hero-banner {
+        display: flex !important;
+        flex-direction: column !important;
+        min-height: 0 !important;
+        height: auto !important;
+        padding: 32px 24px !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    /* Hero left: takes full width, centered */
+    .hero-banner .hero-left {
+        flex: 1 1 auto !important;
+        width: 100% !important;
+        padding: 0 !important;
+        align-items: center !important;
+        text-align: center !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+    }
+
+    .hero-banner .hero-headline {
+        font-size: 1.6rem !important;
+        margin: 0 !important;
+    }
+
+    .hero-banner .hero-tagline {
+        font-size: 0.9rem !important;
+        margin: 0 !important;
+    }
 }
