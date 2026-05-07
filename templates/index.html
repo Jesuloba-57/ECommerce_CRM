@@ -6,6 +6,7 @@
 {% block content %}
 
 {# ── Hero Banner ─────────────────────────────────────────────── #}
+{% if not search and not selected_category %}
 {% if new_listings %}
 <div class="hero-banner" id="hero-banner">
     <div class="hero-left">
@@ -47,8 +48,10 @@
     </div>
 </div>
 {% endif %}
+{% endif %}
 
 {# ── Category Content Boxes ───────────────────────────────────── #}
+{% if not search and not selected_category %}
 <div class="home-boxes-row">
 
     {# Box 1: Just listed #}
@@ -89,22 +92,28 @@
 
 
 </div>
+{% endif %}
 
 {# ── Category Row ─────────────────────────────────────────────── #}
 <div class="category-row">
-    <a href="{{ url_for('views.home') }}"
+    <a href="{{ url_for('views.home', q=search or None, sort=sort if sort != 'newest' else None) }}"
        class="category-tile {% if not selected_category %}active{% endif %}">All</a>
     {% for cat in categories %}
-        <a href="{{ url_for('views.home', category=cat) }}"
+        <a href="{{ url_for('views.home', category=cat, q=search or None, sort=sort if sort != 'newest' else None) }}"
            class="category-tile {% if selected_category == cat %}active{% endif %}">{{ cat }}</a>
     {% endfor %}
 </div>
 
-{% if search or selected_category %}
-    <p class="muted" style="margin-bottom: 12px;">
-        {% if search %}Results for <strong style="color: #000000;">{{ search }}</strong>{% endif %}
-        {% if selected_category %} in <strong style="color: #000000;">{{ selected_category }}</strong>{% endif %}
-    </p>
+{% if search %}
+    <div class="search-results-header">
+        <span>Showing results for <strong>"{{ search }}"</strong>{% if selected_category %} in <strong>{{ selected_category }}</strong>{% endif %}</span>
+        <a class="search-clear" href="{{ url_for('views.home', category=selected_category or None, sort=sort if sort != 'newest' else None) }}">Clear search</a>
+    </div>
+{% elif selected_category %}
+    <div class="search-results-header">
+        <span>Showing items in <strong>{{ selected_category }}</strong></span>
+        <a class="search-clear" href="{{ url_for('views.home', q=search or None, sort=sort if sort != 'newest' else None) }}">Clear filter</a>
+    </div>
 {% endif %}
 
 <form class="sort-row" method="GET" action="{{ url_for('views.home') }}" id="sort-form">
