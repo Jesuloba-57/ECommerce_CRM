@@ -2570,45 +2570,44 @@ textarea:focus {
     .hero-card,
     .hero-card-img,
     .hero-card-info {
-        display: none !important;
+        display: none;
     }
 
     /* Hide the boxes section on mobile */
-    .home-boxes-row,
-    .home-boxes-row * {
-        display: none !important;
+    .home-boxes-row {
+        display: none;
     }
 
     /* Hero banner: tight, single-column, content-sized */
     .hero-banner {
-        display: flex !important;
-        flex-direction: column !important;
-        min-height: 0 !important;
-        height: auto !important;
-        padding: 32px 24px !important;
-        align-items: center !important;
-        justify-content: center !important;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        height: auto;
+        padding: 32px 24px;
+        align-items: center;
+        justify-content: center;
     }
 
     /* Hero left: takes full width, centered */
     .hero-banner .hero-left {
-        flex: 1 1 auto !important;
-        width: 100% !important;
-        padding: 0 !important;
-        align-items: center !important;
-        text-align: center !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 12px !important;
+        flex: 1 1 auto;
+        width: 100%;
+        padding: 0;
+        align-items: center;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
     }
 
     .hero-banner .hero-headline {
-        font-size: 1.6rem !important;
-        margin: 0 !important;
+        font-size: 1.6rem;
+        margin: 0;
     }
 
     .hero-banner .hero-tagline {
-        font-size: 0.9rem !important;
-        margin: 0 !important;
+        font-size: 0.9rem;
+        margin: 0;
     }
 }
