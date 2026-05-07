@@ -30,6 +30,7 @@
         </div>
 
         <form class="header-search" method="GET" action="{{ url_for('views.home') }}" role="search">
+            {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
             <input type="search" name="q" value="{{ request.args.get('q', '') }}"
                    placeholder="Search listings…" aria-label="Search listings">
             <button type="submit">Search</button>

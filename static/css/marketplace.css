@@ -562,6 +562,34 @@ input, select, textarea, button {
     border-color: var(--ink);
 }
 
+/* ── Search results header ───────────────────────────────────── */
+
+.search-results-header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-size: 0.95rem;
+}
+
+.search-results-header strong {
+    font-family: "Space Grotesk", sans-serif;
+    color: var(--ink);
+}
+
+.search-clear {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+    border-bottom: 1px solid currentColor;
+    transition: color 0.15s;
+}
+
+.search-clear:hover {
+    color: var(--ink);
+}
+
 /* ── Listing grid + tiles (homepage) ─────────────────────────── */
 
 .listing-grid {
