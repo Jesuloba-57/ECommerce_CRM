@@ -49,19 +49,25 @@
         </div>
     </header>
 
-    <nav class="hamburger-nav" id="hamburger-nav" aria-hidden="true">
-        <a href="{{ url_for('views.home') }}">Browse</a>
-        <a href="{{ url_for('views.about') }}">About</a>
+    <div class="drawer-overlay" id="drawer-overlay" aria-hidden="true"></div>
+
+    <nav class="side-drawer" id="side-drawer" aria-hidden="true" aria-label="Main navigation">
+        <button class="drawer-close" id="drawer-close" aria-label="Close navigation">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <line x1="1" y1="1" x2="17" y2="17" stroke="currentColor" stroke-width="2"/>
+                <line x1="17" y1="1" x2="1" y2="17" stroke="currentColor" stroke-width="2"/>
+            </svg>
+        </button>
+        <a class="drawer-item" href="{{ url_for('views.home') }}">Browse</a>
+        <a class="drawer-item" href="{{ url_for('views.about') }}">About</a>
         {% if current_user.is_authenticated %}
-            <a href="{{ url_for('views.seller_dashboard') }}">Sell</a>
-            <a href="{{ url_for('views.activity') }}">Activity</a>
-            <a href="{{ url_for('views.conversations') }}">Messages</a>
-            <a class="nav-badge-link" href="{{ url_for('views.notifications') }}">
-                Notifications
-                {% if unread_notification_count %}
-                    <span class="nav-badge">{{ unread_notification_count }}</span>
-                {% endif %}
-            </a>
+            <a class="drawer-item" href="{{ url_for('views.seller_dashboard') }}">Sell</a>
+            <a class="drawer-item" href="{{ url_for('views.activity') }}">Activity</a>
+            <a class="drawer-item" href="{{ url_for('views.conversations') }}">Messages</a>
+            <a class="drawer-item" href="{{ url_for('auth.logout') }}">Logout</a>
+        {% else %}
+            <a class="drawer-item" href="{{ url_for('auth.login') }}">Login</a>
+            <a class="drawer-item" href="{{ url_for('auth.signup') }}">Create account</a>
         {% endif %}
     </nav>
 
@@ -81,27 +87,72 @@
         </main>
     </div>
 
+    {% if current_user.is_authenticated %}
+    <a class="chat-fab" id="chat-fab" href="{{ url_for('views.conversations') }}" aria-label="Messages">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="chat-fab-badge" id="chat-fab-badge"></span>
+    </a>
+    {% endif %}
+
     {% block scripts %}{% endblock %}
 
     <script>
         (function () {
             var btn = document.getElementById('hamburger-btn');
-            var nav = document.getElementById('hamburger-nav');
-            if (!btn || !nav) return;
+            var drawer = document.getElementById('side-drawer');
+            var overlay = document.getElementById('drawer-overlay');
+            var closeBtn = document.getElementById('drawer-close');
+            if (!btn || !drawer || !overlay) return;
 
-            btn.addEventListener('click', function () {
-                var open = nav.classList.toggle('is-open');
-                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-                nav.setAttribute('aria-hidden', open ? 'false' : 'true');
-            });
+            function openDrawer() {
+                drawer.classList.add('is-open');
+                overlay.classList.add('is-open');
+                btn.setAttribute('aria-expanded', 'true');
+                drawer.setAttribute('aria-hidden', 'false');
+                overlay.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+            }
 
-            document.addEventListener('click', function (e) {
-                if (!btn.contains(e.target) && !nav.contains(e.target) && nav.classList.contains('is-open')) {
-                    nav.classList.remove('is-open');
-                    btn.setAttribute('aria-expanded', 'false');
-                    nav.setAttribute('aria-hidden', 'true');
-                }
-            });
+            function closeDrawer() {
+                drawer.classList.remove('is-open');
+                overlay.classList.remove('is-open');
+                btn.setAttribute('aria-expanded', 'false');
+                drawer.setAttribute('aria-hidden', 'true');
+                overlay.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
+            }
+
+            btn.addEventListener('click', openDrawer);
+            overlay.addEventListener('click', closeDrawer);
+            if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+        })();
+
+        (function () {
+            var fab = document.getElementById('chat-fab');
+            var badge = document.getElementById('chat-fab-badge');
+            if (!fab) return;
+
+            var path = window.location.pathname;
+            if (path === '/conversations' || path.startsWith('/conversations/')) {
+                fab.style.display = 'none';
+                return;
+            }
+
+            fetch('/conversations', { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data || !badge) return;
+                    var total = data.conversations.reduce(function (sum, c) {
+                        return sum + (c.unread_count || 0);
+                    }, 0);
+                    if (total > 0) {
+                        badge.textContent = total > 99 ? '99+' : String(total);
+                        badge.style.display = 'flex';
+                    }
+                })
+                .catch(function () {});
         })();
     </script>
 
