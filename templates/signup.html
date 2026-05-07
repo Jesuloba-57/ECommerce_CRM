@@ -7,8 +7,8 @@
     <article class="auth-panel">
         <div>
             <p class="eyebrow">Get started</p>
-            <h1>Create your buyer-seller account.</h1>
-            <p class="muted">One account lets you browse listings, submit offers, publish products, and keep price history updated.</p>
+            <h1>Create your marketplace account.</h1>
+            <p class="muted">Choose whether this account should act as a buyer, a seller, or both.</p>
         </div>
 
         <form method="POST" class="form-card auth-form two-column-form">
@@ -24,6 +24,17 @@
                 <span>Email</span>
                 <input type="email" name="email" placeholder="you@example.com" required>
             </label>
+            <fieldset class="full-width role-fieldset">
+                <legend>Account type</legend>
+                <label class="role-option">
+                    <input type="checkbox" name="roles" value="buyer" checked>
+                    <span>Buyer</span>
+                </label>
+                <label class="role-option">
+                    <input type="checkbox" name="roles" value="seller" checked>
+                    <span>Seller</span>
+                </label>
+            </fieldset>
             <label>
                 <span>Password</span>
                 <input type="password" name="password1" placeholder="At least 8 characters" required>

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Canes Market{% endblock %}
+
+{% block content %}
+<section class="panel profile-hero">
+  <div class="profile-avatar-wrap">
+    <img
+      src="{{ user.profile_image_url or url_for('static', filename='images/guy1.avif') }}"
+      class="profile-avatar"
+      alt="Profile picture"
+    >
+    <form action="{{ url_for('views.upload_profile_picture') }}" method="post" enctype="multipart/form-data" class="profile-upload">
+      <label for="picture">Update profile picture</label>
+      <input type="file" name="picture" id="picture" accept="image/*" required>
+      <button class="button button-small" type="submit">Upload</button>
+    </form>
+  </div>
+
+  <div class="profile-hero-copy">
+    <p class="profile-kicker">Account overview</p>
+    <h1>{{ user.display_name }}</h1>
+    <p class="profile-email">{{ user.email }}</p>
+    <div class="tag-row">
+      {% if user.is_buyer %}
+        <span class="pill">Buyer</span>
+      {% endif %}
+      {% if user.is_seller %}
+        <span class="pill">Seller</span>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="profile-grid">
+  <article class="panel profile-section">
+    <div class="panel-header">
+      <h3>Account details</h3>
+    </div>
+    <div class="card-grid profile-detail-grid">
+      <div class="stat-card">
+        <span class="stat-label">Full name</span>
+        <strong>{{ user.display_name }}</strong>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Email</span>
+        <strong>{{ user.email }}</strong>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Member since</span>
+        <strong>{{ user.created_at | datetime }}</strong>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Account type</span>
+        <strong>
+          {% if user.is_buyer and user.is_seller %}
+            Buyer + Seller
+          {% elif user.is_seller %}
+            Seller
+          {% else %}
+            Buyer
+          {% endif %}
+        </strong>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel profile-section">
+    <div class="panel-header">
+      <h3>Wallet</h3>
+    </div>
+    <div class="profile-wallet-box">
+      <span class="stat-label">Current balance</span>
+      <strong>{{ wallet_balance_cents | money }}</strong>
+      <p class="muted">Connecting external payment methods is disabled for privacy. Adding funds is simulated for now.</p>
+    </div>
+
+    <form action="{{ url_for('views.add_wallet_funds') }}" method="post" class="profile-wallet-form">
+      <label for="amount">Add funds (USD)</label>
+      <input id="amount" name="amount" placeholder="$10.00" required>
+      <button class="button" type="submit">Add funds</button>
+    </form>
+  </article>
+</section>
+
+<section class="panel profile-section">
+  <div class="panel-header">
+    <h3>Account actions</h3>
+  </div>
+  <div class="button-row">
+    <a class="button button-secondary" href="{{ url_for('views.activity') }}">View activity</a>
+    {% if user.is_seller %}
+      <a class="button button-ghost" href="{{ url_for('views.seller_dashboard') }}">Seller dashboard</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

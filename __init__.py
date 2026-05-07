@@ -9,16 +9,15 @@ from sqlalchemy import inspect, text
 from werkzeug.security import generate_password_hash
 
 db = SQLAlchemy()
-DB_NAME = "database.db"
 
 
 def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-marketplace-secret")
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-        "DATABASE_URL",
-        f"sqlite:///{DB_NAME}",
-    )
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL is required and must point to the Neon Postgres database.")
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     db.init_app(app)
 
@@ -51,6 +50,7 @@ def create_app():
 def create_database():
     db.create_all()
     ensure_user_columns()
+    ensure_role_profiles()
 
 
 def ensure_user_columns():
@@ -62,11 +62,18 @@ def ensure_user_columns():
     statements = []
 
     if "first_name" not in existing_columns:
-        statements.append("ALTER TABLE user ADD COLUMN first_name VARCHAR(100)")
+        statements.append('ALTER TABLE "user" ADD COLUMN first_name VARCHAR(100)')
     if "last_name" not in existing_columns:
-        statements.append("ALTER TABLE user ADD COLUMN last_name VARCHAR(100)")
+        statements.append('ALTER TABLE "user" ADD COLUMN last_name VARCHAR(100)')
     if "created_at" not in existing_columns:
-        statements.append("ALTER TABLE user ADD COLUMN created_at DATETIME")
+        if db.engine.dialect.name == "postgresql":
+            statements.append('ALTER TABLE "user" ADD COLUMN created_at TIMESTAMP')
+        else:
+            statements.append('ALTER TABLE "user" ADD COLUMN created_at DATETIME')
+    if "profile_image_url" not in existing_columns:
+        statements.append('ALTER TABLE "user" ADD COLUMN profile_image_url VARCHAR(255)')
+    if "wallet_balance_cents" not in existing_columns:
+        statements.append('ALTER TABLE "user" ADD COLUMN wallet_balance_cents INTEGER NOT NULL DEFAULT 0')
 
     if not statements:
         return
@@ -74,10 +81,27 @@ def ensure_user_columns():
     with db.engine.begin() as connection:
         for statement in statements:
             connection.execute(text(statement))
+        if "wallet_balance_cents" in existing_columns:
+            connection.execute(text('UPDATE "user" SET wallet_balance_cents = 0 WHERE wallet_balance_cents IS NULL'))
+
+
+def ensure_role_profiles():
+    from db_model import BuyerProfile, SellerProfile, User
+
+    if User.query.count() == 0:
+        return
+
+    seller_ids = {row[0] for row in db.session.query(SellerProfile.user_id).all()}
+
+    for user in User.query.all():
+        if user.id not in seller_ids:
+            db.session.add(SellerProfile(user_id=user.id))
+
+    db.session.commit()
 
 
 def seed_marketplace_data():
-    from db_model import Listing, PriceHistory, User
+    from db_model import Listing, PriceHistory, SellerProfile, User
 
     if Listing.query.count() > 0:
         return
@@ -92,8 +116,10 @@ def seed_marketplace_data():
             first_name="Campus",
             last_name="Seller",
             created_at=datetime.utcnow(),
+            wallet_balance_cents=0,
         )
         db.session.add(seller)
+        db.session.add(SellerProfile(user_id=seller.id))
         db.session.commit()
 
     if not seller.first_name:

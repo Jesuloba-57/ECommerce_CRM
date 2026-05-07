@@ -13,6 +13,8 @@ class User(db.Model, UserMixin):
     first_name = db.Column(db.String(100))
     last_name = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    profile_image_url = db.Column(db.String(255))
+    wallet_balance_cents = db.Column(db.Integer, nullable=False, default=0)
 
     listings = db.relationship(
         "Listing",
@@ -32,6 +34,18 @@ class User(db.Model, UserMixin):
         foreign_keys="Offer.seller_id",
         lazy=True,
     )
+    buyer_profile = db.relationship(
+        "BuyerProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    seller_profile = db.relationship(
+        "SellerProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     @property
     def display_name(self):
@@ -40,6 +54,28 @@ class User(db.Model, UserMixin):
         if self.first_name:
             return self.first_name
         return self.email.split("@")[0].replace(".", " ").title()
+
+    @property
+    def is_buyer(self):
+        return self.buyer_profile is not None
+
+    @property
+    def is_seller(self):
+        return self.seller_profile is not None
+
+
+class BuyerProfile(db.Model):
+    user_id = db.Column(db.String(15), db.ForeignKey("user.id"), primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    user = db.relationship("User", back_populates="buyer_profile")
+
+
+class SellerProfile(db.Model):
+    user_id = db.Column(db.String(15), db.ForeignKey("user.id"), primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    user = db.relationship("User", back_populates="seller_profile")
 
 
 class Listing(db.Model):

@@ -1,6 +1,6 @@
 # Canes Market
 
-Canes Market is a Flask marketplace app for browsing campus-friendly listings, creating seller accounts, publishing items, tracking price history, and sending or responding to offers.
+Canes Market is a Flask marketplace app for browsing campus-friendly listings, creating buyer and seller accounts, publishing items, tracking price history, and sending or responding to offers.
 
 ## Tech Stack
 
@@ -8,7 +8,9 @@ Canes Market is a Flask marketplace app for browsing campus-friendly listings, c
 - Flask
 - Flask-SQLAlchemy
 - Flask-Login
-- SQLite for local development
+- PostgreSQL on Neon
+
+The database uses a shared `user` table for login credentials and separate buyer and seller profile tables for role-specific querying.
 
 ## Project Structure
 
@@ -22,7 +24,6 @@ Canes Market is a Flask marketplace app for browsing campus-friendly listings, c
 |-- requirements.txt     # Python dependencies
 |-- templates/           # Jinja templates
 |-- static/              # CSS and images
-`-- instance/            # Local SQLite database location
 ```
 
 ## Run Locally
@@ -34,6 +35,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+export DATABASE_URL="postgresql+psycopg2://<user>:<password>@<host>:<port>/<db>?sslmode=require&channel_binding=require"
 python main.py
 ```
 
@@ -56,18 +58,18 @@ Email: demo-seller@canesmarket.local
 Password: marketplace123
 ```
 
-You can also create a new account from `/signup`.
+You can also create a new account from `/signup`. During signup, choose whether the account should act as a buyer, a seller, or both.
 
 ## Environment Variables
 
-These are optional for local development:
+Set these before starting the app:
 
 ```bash
 export SECRET_KEY="replace-with-a-local-secret"
-export DATABASE_URL="sqlite:///database.db"
+export DATABASE_URL="postgresql+psycopg2://<user>:<password>@<host>:<port>/<db>?sslmode=require&channel_binding=require"
 ```
 
-If `DATABASE_URL` is not set, the app defaults to a local SQLite database named `database.db`. With Flask-SQLAlchemy, the active local database is stored under the app instance folder, usually `instance/database.db`.
+`DATABASE_URL` should point to your Neon Postgres database. The app no longer falls back to SQLite.
 
 ## Useful Routes
 
@@ -79,25 +81,15 @@ If `DATABASE_URL` is not set, the app defaults to a local SQLite database named 
 - `/activity` - Buyer and seller offer activity
 - `/cart` - Alias for the activity page
 
-## Reset Local Data
+Buyer-only accounts can browse listings and send offers. Seller-capable accounts can use the seller dashboard, publish listings, and respond to offers.
 
-To start with a fresh local database, stop the Flask server and remove the SQLite database in the `instance` folder:
+## Reset Data
 
-```bash
-rm instance/database.db
-```
-
-Then start the app again:
-
-```bash
-python main.py
-```
-
-The database tables and demo listings will be recreated automatically.
+If you need to reset test data in Neon, do so directly in the Postgres database or through your normal Neon workflow. The app seeds demo marketplace listings when the listings table is empty.
 
 ## Optional MySQL Helper
 
-`connectDB.py` contains an older MySQL helper and is not required for the normal Flask app startup. The default local workflow uses SQLite.
+`connectDB.py` contains an older MySQL helper and is not required for the normal Flask app startup.
 
 If you plan to work on `connectDB.py`, install the optional MySQL package first:
 
@@ -115,7 +107,7 @@ If imports fail, make sure your virtual environment is active and dependencies w
 python -m pip install -r requirements.txt
 ```
 
-If database state looks stale, reset `instance/database.db` and restart the app.
+If database state looks stale, reset the relevant rows in Neon and restart the app.
 
 ## Tests
 

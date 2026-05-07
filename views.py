@@ -1,13 +1,16 @@
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import current_user, login_required
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import joinedload
+from flask import current_app
+from werkzeug.utils import secure_filename
+import os
 
 from __init__ import db
-from db_model import Listing, Offer, PriceHistory, User
+from db_model import Listing, Offer, PriceHistory, SellerProfile, User
 
 views = Blueprint("views", __name__)
 
@@ -42,7 +45,7 @@ def parse_price_to_cents(raw_price):
 
 def get_owned_listing(listing_id):
     listing = Listing.query.get_or_404(listing_id)
-    if listing.seller_id != current_user.id:
+    if not current_user.is_seller or listing.seller_id != current_user.id:
         abort(403)
     return listing
 
@@ -85,6 +88,7 @@ def home():
 
     featured_sellers = (
         db.session.query(User, func.count(Listing.id).label("listing_count"))
+        .join(SellerProfile, SellerProfile.user_id == User.id)
         .join(Listing, Listing.seller_id == User.id)
         .filter(Listing.status == "active")
         .group_by(User.id)
@@ -95,7 +99,7 @@ def home():
 
     stats = {
         "active_listings": Listing.query.filter_by(status="active").count(),
-        "sellers": db.session.query(User.id).join(Listing).distinct().count(),
+        "sellers": db.session.query(SellerProfile.user_id).count(),
         "offers": Offer.query.count(),
     }
 
@@ -124,6 +128,9 @@ def about():
 @views.route("/seller")
 @login_required
 def seller_dashboard():
+    if not current_user.is_seller:
+        abort(403)
+
     listings = (
         Listing.query.options(
             joinedload(Listing.price_history),
@@ -164,6 +171,9 @@ def seller_dashboard():
 @views.route("/seller/listings", methods=["POST"])
 @login_required
 def create_listing():
+    if not current_user.is_seller:
+        abort(403)
+
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
     category = request.form.get("category", "").strip()
@@ -317,6 +327,10 @@ def listing_detail(listing_id):
 def submit_offer(listing_id):
     listing = Listing.query.options(joinedload(Listing.seller)).get_or_404(listing_id)
 
+    if not current_user.is_buyer:
+        flash("Only buyer accounts can submit offers.", "error")
+        return redirect(url_for("views.listing_detail", listing_id=listing.id))
+
     if listing.seller_id == current_user.id:
         flash("You cannot submit an offer on your own listing.", "error")
         return redirect(url_for("views.listing_detail", listing_id=listing.id))
@@ -351,7 +365,7 @@ def submit_offer(listing_id):
 @login_required
 def respond_to_offer(offer_id):
     offer = Offer.query.options(joinedload(Offer.listing)).get_or_404(offer_id)
-    if offer.seller_id != current_user.id:
+    if not current_user.is_seller or offer.seller_id != current_user.id:
         abort(403)
 
     if offer.status not in {"pending", "countered"}:
@@ -438,3 +452,71 @@ def activity():
         offers_received=offers_received,
         listings=listings,
     )
+
+
+@views.route("/health")
+def health_check():
+    """Simple health-check endpoint: verifies DB connectivity and basic counts."""
+    try:
+        ok = db.session.execute(text("select 1")).scalar()
+        users = db.session.execute(text('select count(*) from "user"')).scalar()
+        return jsonify({"ok": True, "db": {"select_1": int(ok), "user_count": int(users)}}), 200
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@views.route("/profile", methods=["GET"])
+@login_required
+def profile():
+    return render_template(
+        "profile.html",
+        user=current_user,
+        wallet_balance_cents=current_user.wallet_balance_cents or 0,
+    )
+
+
+@views.route("/profile/picture", methods=["POST"])
+@login_required
+def upload_profile_picture():
+    file = request.files.get("picture")
+    if not file:
+        flash("No file uploaded.", "error")
+        return redirect(url_for("views.profile"))
+
+    filename = secure_filename(file.filename)
+    if filename == "":
+        flash("Invalid file name.", "error")
+        return redirect(url_for("views.profile"))
+
+    _, ext = os.path.splitext(filename)
+    ext = ext.lower() or ".png"
+    dest_dir = os.path.join(current_app.static_folder, "images", "profiles")
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_name = f"profile_{current_user.id}{ext}"
+    dest_path = os.path.join(dest_dir, dest_name)
+    file.save(dest_path)
+
+    current_user.profile_image_url = f"/static/images/profiles/{dest_name}"
+    db.session.add(current_user)
+    db.session.commit()
+
+    flash("Profile picture updated.", "success")
+    return redirect(url_for("views.profile"))
+
+
+@views.route("/profile/wallet/add", methods=["POST"])
+@login_required
+def add_wallet_funds():
+    amount_raw = request.form.get("amount", "").strip()
+    try:
+        amount_cents = parse_price_to_cents(amount_raw)
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("views.profile"))
+
+    current_user.wallet_balance_cents = (current_user.wallet_balance_cents or 0) + amount_cents
+    db.session.add(current_user)
+    db.session.commit()
+
+    flash("Funds added to your wallet (simulated).", "success")
+    return redirect(url_for("views.profile"))
