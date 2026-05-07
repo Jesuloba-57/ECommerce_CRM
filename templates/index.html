@@ -107,12 +107,12 @@
 {% if search %}
     <div class="search-results-header">
         <span>Showing results for <strong>"{{ search }}"</strong>{% if selected_category %} in <strong>{{ selected_category }}</strong>{% endif %}</span>
-        <a class="search-clear" href="{{ url_for('views.home') }}">Clear search</a>
+        <a class="search-clear" href="{{ url_for('views.home', category=selected_category or None, sort=sort if sort != 'newest' else None) }}">Clear search</a>
     </div>
 {% elif selected_category %}
     <div class="search-results-header">
         <span>Showing items in <strong>{{ selected_category }}</strong></span>
-        <a class="search-clear" href="{{ url_for('views.home') }}">Clear filter</a>
+        <a class="search-clear" href="{{ url_for('views.home', q=search or None, sort=sort if sort != 'newest' else None) }}">Clear filter</a>
     </div>
 {% endif %}
 
