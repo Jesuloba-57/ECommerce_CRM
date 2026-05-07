@@ -37,7 +37,7 @@
 
         <div class="header-right">
             {% if current_user.is_authenticated %}
-                <a class="user-chip" href="{{ url_for('views.activity') }}">
+                <a class="user-chip" href="{{ url_for('views.profile') }}">
                     <span class="user-chip-label">{{ current_user.display_name }}</span>
                     <strong>{{ current_user.wallet_balance_cents | money }}</strong>
                     <small>App wallet</small>

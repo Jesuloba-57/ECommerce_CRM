@@ -183,6 +183,12 @@ input, select, textarea, button {
     text-align: right;
     line-height: 1.1;
     cursor: pointer;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.user-chip:hover {
+    transform: translateY(-1px);
+    opacity: 0.9;
 }
 
 .user-chip-label {
@@ -335,6 +341,128 @@ input, select, textarea, button {
 .page-content {
     display: grid;
     gap: 24px;
+}
+
+/* ── Profile page ────────────────────────────────────────────── */
+
+.profile-hero {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 24px;
+    align-items: center;
+}
+
+.profile-avatar-panel {
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+}
+
+.profile-avatar {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 6px solid rgba(255, 255, 255, 0.96);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
+    background: linear-gradient(135deg, #f3e0cd, #ead6c4);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.profile-avatar:hover {
+    transform: scale(1.03);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.16);
+}
+
+.profile-upload-form {
+    width: min(280px, 100%);
+    display: grid;
+    gap: 10px;
+}
+
+.profile-upload-form input[type="file"] {
+    width: 100%;
+}
+
+.profile-summary-card {
+    display: grid;
+    gap: 14px;
+}
+
+.profile-summary-card h1 {
+    font-size: clamp(2rem, 3vw, 3.2rem);
+    line-height: 1;
+}
+
+.profile-copy {
+    max-width: 58ch;
+    color: var(--muted);
+}
+
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.profile-box {
+    display: grid;
+    gap: 18px;
+}
+
+.profile-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.profile-detail-item,
+.profile-wallet-card {
+    padding: 18px;
+    border-radius: var(--r);
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+}
+
+.profile-detail-label {
+    display: block;
+    color: var(--muted);
+    font-size: 0.88rem;
+    margin-bottom: 8px;
+}
+
+.profile-wallet-card {
+    display: grid;
+    gap: 10px;
+}
+
+.profile-wallet-card strong {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.profile-wallet-form {
+    display: grid;
+    gap: 12px;
+    max-width: 360px;
+}
+
+.profile-wallet-form input {
+    width: 100%;
+}
+
+.button,
+.button-small,
+.button-secondary,
+.button-ghost {
+    transition: transform 0.18s ease, opacity 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.button:hover,
+.button-small:hover,
+.button-secondary:hover,
+.button-ghost:hover {
+    transform: translateY(-1px);
 }
 
 /* ── Flash messages ──────────────────────────────────────────── */
@@ -1624,6 +1752,25 @@ textarea:focus {
 
     .header-user {
         display: none;
+    }
+
+    .profile-hero,
+    .profile-grid,
+    .profile-detail-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-hero {
+        gap: 18px;
+    }
+
+    .profile-avatar {
+        width: 140px;
+        height: 140px;
+    }
+
+    .profile-upload-form {
+        width: 100%;
     }
 
     .stat-grid {
