@@ -2028,6 +2028,29 @@ textarea:focus {
         grid-template-columns: 1fr;
     }
 
+    .stat-grid.compact-stats {
+        grid-template-columns: repeat(3, 1fr);
+        max-width: 100%;
+        gap: 8px;
+    }
+
+    .stat-grid.compact-stats .stat-card {
+        padding: 12px;
+        min-width: 0;
+    }
+
+    .stat-grid.compact-stats .stat-label {
+        font-size: 0.7rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .stat-grid.compact-stats .stat-card strong {
+        font-size: 1.1rem;
+        white-space: nowrap;
+    }
+
     .chat-send-form {
         grid-template-columns: 1fr;
     }
