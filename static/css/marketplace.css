@@ -210,6 +210,41 @@ input, select, textarea, button {
     color: var(--muted);
 }
 
+/* ── Bell notification button ────────────────────────────────── */
+
+.bell-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+    transition: color 0.18s ease;
+    line-height: 1;
+}
+
+.header-right .bell-btn:hover {
+    color: #F5B800;
+}
+
+.bell-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    font-family: "Space Grotesk", sans-serif;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
 /* ── Side drawer nav ─────────────────────────────────────────── */
 
 .drawer-overlay {

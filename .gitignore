@@ -7,3 +7,5 @@ __pycache__/
 database.db
 instance/*.db
 .env
+
+static/images/profiles/
